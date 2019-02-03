@@ -4,46 +4,51 @@ import (
 	"regexp"
 )
 
-type Level string
+type Level int
 
 const (
-	Level1 Level = "Level 1"
-	Level2 Level = "Level 2"
-	Level3 Level = "Level 3"
-	Level4 Level = "Level 4"
+	L1 Level = iota + 1
+	L2
+	L3
+	L4
 )
 
-var Levels = map[Level]*regexp.Regexp{
-	Level1: regexp.MustCompile("\n= (.*) =\n"),
-	Level2: regexp.MustCompile("\n== (.*) ==\n"),
-	Level3: regexp.MustCompile("\n=== (.*) ===\n"),
-	Level4: regexp.MustCompile("\n==== (.*) ====\n"),
+var HeadersRE = map[Level]*regexp.Regexp{
+	L1: regexp.MustCompile("\n= (.*) =\n"),
+	L2: regexp.MustCompile("\n== (.*) ==\n"),
+	L3: regexp.MustCompile("\n=== (.*) ===\n"),
+	L4: regexp.MustCompile("\n==== (.*) ====\n"),
 }
 
 type Template string
 
 const (
-	Proto       Template = "Proto meaning"
-	T2Examples  Template = "Type 2 examples"
-	T2Content   Template = "Type 2 synonyms, antonyms, etc."
-	TranslLinks Template = "Translations links"
+	LinkedWord   Template = "Linked word"
+	LinkedWordRu Template = "Linked word (russian)"
+	T2Examples   Template = "Type 2 examples"
+	T2Content    Template = "Type 2 synonyms, antonyms, etc."
 )
 
-var Templates = map[Template]*regexp.Regexp{
-	Proto:       regexp.MustCompile("Общее прототипическое значение — .*\n"),
-	T2Examples:  regexp.MustCompile("◆ (.*) {4}"),
-	T2Content:   regexp.MustCompile("синонимы:|конверсивы:|антонимы:|гиперонимы:|гипонимы:|согипонимы:|холонимы:|меронимы:|управление:|категории:"), // якорь? язык?
-	TranslLinks: regexp.MustCompile("\\([^()]*\\)"),
+var TemplatesRE = map[Template]*regexp.Regexp{
+	LinkedWord:   regexp.MustCompile(`(\p{L}+) \( /w`),
+	LinkedWordRu: regexp.MustCompile(`([а-яё]+) \( /w`),
+	T2Examples:   regexp.MustCompile("◆ (.*) {4}"),
+	T2Content:    regexp.MustCompile("синонимы:|конверсивы:|антонимы:|гиперонимы:|гипонимы:|согипонимы:|холонимы:|меронимы:|управление:|категории:"), // якорь? язык?
 }
 
 const (
-	// Level 3
+	Russian = "Русский"
+
 	SemProps     = "Семантические свойства"
 	Translations = "Перевод"
-	// Level 4
+
 	Meanings   = "Значение"
 	Synonyms   = "Синонимы"
 	Antonyms   = "Антонимы"
 	Hyperonyms = "Гиперонимы"
 	Hyponyms   = "Гипонимы"
+
+	ExampleSep     = "◆"
+	Proto          = "Общее прототипическое значение"
+	MissingExample = "Отсутствует пример употребления (см. рекомендации)."
 )

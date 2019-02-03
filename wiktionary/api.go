@@ -28,26 +28,7 @@ type parseResponse struct {
 
 const apiUrl = "https://ru.wiktionary.org/w/api.php?"
 
-var ErrIsMissing = errors.New("page is missing")
-
-func get(url string) ([]byte, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	bytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	err = resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
-}
+var ErrMissing = errors.New("page is missing")
 
 func GetText(title string) (string, error) {
 	params := url.Values{}
@@ -71,7 +52,7 @@ func GetText(title string) (string, error) {
 	}
 
 	if data.Query.Pages[0].Missing {
-		return "", ErrIsMissing
+		return "", ErrMissing
 	}
 
 	return data.Query.Pages[0].Extract, nil
@@ -102,4 +83,23 @@ func GetSectionHTML(title string, number int) (string, error) {
 	}
 
 	return data.Parse.Text, nil
+}
+
+func get(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	bytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
 }

@@ -6,39 +6,37 @@ import (
 	"strings"
 
 	"github.com/jaytaylor/html2text"
-	"github.com/stillpiercer/wikitologies/utils"
+
 	wikt "github.com/stillpiercer/wikitologies/wiktionary"
 )
 
-func ParseText(text string) *utils.OrderedMap {
+func ParseText(text string) Sections {
 	number := 1
-	l1sections := parseSections(text, wikt.Level1)
-	for _, l1name := range l1sections.Keys() {
-		l1section := l1sections.ByKey(l1name).(*Section)
-		l2sections := parseSections(l1section.Content.(string), wikt.Level2)
-		if len(l2sections.Keys()) > 0 {
-			l1section.Content = &SubSections{Level: wikt.Level2, Sections: l2sections}
+	l1sections := parseSection(text, wikt.L1)
+
+	for _, l1section := range l1sections {
+		l2sections := parseSection(l1section.Text, wikt.L2)
+		if len(l2sections) > 0 {
+			l1section.SubSections = &SubSections{Level: wikt.L2, Sections: l2sections}
 			l1section.Number = number
 			number++
 
-			for _, l2name := range l2sections.Keys() {
-				l2section := l2sections.ByKey(l2name).(*Section)
-				l3sections := parseSections(l2section.Content.(string), wikt.Level3)
-				if len(l3sections.Keys()) > 0 {
-					l2section.Content = &SubSections{Level: wikt.Level3, Sections: l3sections}
+			for _, l2section := range l2sections {
+				l3sections := parseSection(l2section.Text, wikt.L3)
+				if len(l3sections) > 0 {
+					l2section.SubSections = &SubSections{Level: wikt.L3, Sections: l3sections}
 					l2section.Number = number
 					number++
 
-					for _, l3name := range l3sections.Keys() {
-						l3section := l3sections.ByKey(l3name).(*Section)
-						l4sections := parseSections(l3section.Content.(string), wikt.Level4)
-						if len(l4sections.Keys()) > 0 {
-							l3section.Content = &SubSections{Level: wikt.Level4, Sections: l4sections}
+					for _, l3section := range l3sections {
+						l4sections := parseSection(l3section.Text, wikt.L4)
+						if len(l4sections) > 0 {
+							l3section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
 							l3section.Number = number
 							number++
 
-							for _, l4name := range l4sections.Keys() {
-								l4sections.ByKey(l4name).(*Section).Number = number
+							for _, l4section := range l4sections {
+								l4section.Number = number
 								number++
 							}
 						} else {
@@ -47,14 +45,14 @@ func ParseText(text string) *utils.OrderedMap {
 						}
 					}
 				} else {
-					l4sections := parseSections(l2section.Content.(string), wikt.Level4)
-					if len(l4sections.Keys()) > 0 {
-						l2section.Content = &SubSections{Level: wikt.Level4, Sections: l4sections}
+					l4sections := parseSection(l2section.Text, wikt.L4)
+					if len(l4sections) > 0 {
+						l2section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
 						l2section.Number = number
 						number++
 
-						for _, l4name := range l4sections.Keys() {
-							l4sections.ByKey(l4name).(*Section).Number = number
+						for _, l4section := range l4sections {
+							l4section.Number = number
 							number++
 						}
 					} else {
@@ -64,22 +62,21 @@ func ParseText(text string) *utils.OrderedMap {
 				}
 			}
 		} else {
-			l3sections := parseSections(l1section.Content.(string), wikt.Level3)
-			if len(l3sections.Keys()) > 0 {
-				l1section.Content = &SubSections{Level: wikt.Level3, Sections: l3sections}
+			l3sections := parseSection(l1section.Text, wikt.L3)
+			if len(l3sections) > 0 {
+				l1section.SubSections = &SubSections{Level: wikt.L3, Sections: l3sections}
 				l1section.Number = number
 				number++
 
-				for _, l3name := range l3sections.Keys() {
-					l3section := l3sections.ByKey(l3name).(*Section)
-					l4sections := parseSections(l3section.Content.(string), wikt.Level4)
-					if len(l4sections.Keys()) > 0 {
-						l3section.Content = &SubSections{Level: wikt.Level4, Sections: l4sections}
+				for _, l3section := range l3sections {
+					l4sections := parseSection(l3section.Text, wikt.L4)
+					if len(l4sections) > 0 {
+						l3section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
 						l3section.Number = number
 						number++
 
-						for _, l4name := range l4sections.Keys() {
-							l4sections.ByKey(l4name).(*Section).Number = number
+						for _, l4section := range l4sections {
+							l4section.Number = number
 							number++
 						}
 					} else {
@@ -88,14 +85,14 @@ func ParseText(text string) *utils.OrderedMap {
 					}
 				}
 			} else {
-				l4sections := parseSections(l1section.Content.(string), wikt.Level4)
-				if len(l4sections.Keys()) > 0 {
-					l1section.Content = &SubSections{Level: wikt.Level4, Sections: l4sections}
+				l4sections := parseSection(l1section.Text, wikt.L4)
+				if len(l4sections) > 0 {
+					l1section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
 					l1section.Number = number
 					number++
 
-					for _, l4name := range l4sections.Keys() {
-						l4sections.ByKey(l4name).(*Section).Number = number
+					for _, l4section := range l4sections {
+						l4section.Number = number
 						number++
 					}
 				} else {
@@ -109,64 +106,72 @@ func ParseText(text string) *utils.OrderedMap {
 	return l1sections
 }
 
-func parseSections(text string, level wikt.Level) *utils.OrderedMap {
-	sections := utils.NewOrderedMap()
+func ParseMeanings(semProps *Section) Meanings {
+	if semProps.SubSections != nil {
+		return parseI(semProps.SubSections.Sections)
+	} else {
+		return parseII(semProps.Text)
+	}
+}
 
-	matches := wikt.Levels[level].FindAllStringSubmatch(text, -1)
-	contents := wikt.Levels[level].Split(text, -1)
+func ParseTranslations(meanings Meanings, foreign bool, html string) {
+	text, err := html2text.FromString(html)
+	if err != nil {
+		log.Print(err)
+		return
+	}
 
-	for i := range matches {
-		sections.Set(matches[i][1], &Section{Content: contents[i+1]})
+	translations := make([]Translations, len(meanings))
+	if foreign {
+		parseTranslationsForeign(text, translations)
+	} else {
+		parseTranslations(text, translations)
+	}
+
+	for i := range meanings {
+		meanings[i].Translations = translations[i]
+	}
+}
+
+func parseSection(text string, lvl wikt.Level) Sections {
+	headers := wikt.HeadersRE[lvl].FindAllStringSubmatch(text, -1)
+	texts := wikt.HeadersRE[lvl].Split(text, -1)
+
+	var sections Sections
+	for i := range headers {
+		sections = append(sections, &Section{Header: headers[i][1], Text: texts[i+1]})
 	}
 
 	return sections
 }
 
-func ParseSemantics(section *Section, translationsHTML string) *utils.OrderedMap {
-	var semantics *utils.OrderedMap
-	switch content := section.Content.(type) {
-	case string:
-		semantics = parseII(content)
-	case *SubSections:
-		semantics = parseI(content.Sections)
+func parseI(sections Sections) Meanings {
+	section := sections.ByHeader(wikt.Meanings)
+	if section == nil {
+		return nil
 	}
+	values, examples := parseMeanings(section.Text)
 
-	translations := make([]*utils.OrderedMap, len(semantics.Keys()))
-	for i := range translations {
-		translations[i] = utils.NewOrderedMap()
-	}
-
-	if translationsHTML != "" {
-		parseTranslations(translationsHTML, translations)
-	}
-	for i := range semantics.Keys() {
-		semantics.ByIndex(i).(*Content).Translations = translations[i]
-	}
-
-	return semantics
-}
-
-func parseI(sections *utils.OrderedMap) *utils.OrderedMap {
-	meaningSection := sections.ByKey(wikt.Meanings).(*Section)
-	l, meanings, examples := parseMeanings(strings.TrimSpace(meaningSection.Content.(string)))
+	l := len(values)
 	synonyms, antonyms, hyperonyms, hyponyms := make([][]string, l), make([][]string, l), make([][]string, l), make([][]string, l)
 
-	if synonymsSection := sections.ByKey(wikt.Synonyms); synonymsSection != nil {
-		parseRelation(strings.TrimSpace(synonymsSection.(*Section).Content.(string)), synonyms)
+	if section = sections.ByHeader(wikt.Synonyms); section != nil {
+		parseRelations(section.Text, synonyms)
 	}
-	if antonymsSection := sections.ByKey(wikt.Antonyms); antonymsSection != nil {
-		parseRelation(strings.TrimSpace(antonymsSection.(*Section).Content.(string)), antonyms)
+	if section := sections.ByHeader(wikt.Antonyms); section != nil {
+		parseRelations(section.Text, antonyms)
 	}
-	if hyperonymsSection := sections.ByKey(wikt.Hyperonyms); hyperonymsSection != nil {
-		parseRelation(strings.TrimSpace(hyperonymsSection.(*Section).Content.(string)), hyperonyms)
+	if section := sections.ByHeader(wikt.Hyperonyms); section != nil {
+		parseRelations(section.Text, hyperonyms)
 	}
-	if hyponymsSection := sections.ByKey(wikt.Hyponyms); hyponymsSection != nil {
-		parseRelation(strings.TrimSpace(hyponymsSection.(*Section).Content.(string)), hyponyms)
+	if section := sections.ByHeader(wikt.Hyponyms); section != nil {
+		parseRelations(section.Text, hyponyms)
 	}
 
-	result := utils.NewOrderedMap()
-	for i, meaning := range meanings {
-		result.Set(meaning, &Content{
+	var meanings Meanings
+	for i, value := range values {
+		meanings = append(meanings, &Meaning{
+			Value:        value,
 			Examples:     examples[i],
 			Synonyms:     synonyms[i],
 			Antonyms:     antonyms[i],
@@ -176,102 +181,89 @@ func parseI(sections *utils.OrderedMap) *utils.OrderedMap {
 		})
 	}
 
-	return result
+	return meanings
 }
 
-func parseMeanings(text string) (int, []string, [][]string) {
-	const empty = "Отсутствует пример употребления (см. рекомендации)."
+func parseII(text string) Meanings {
+	var meanings Meanings
+	for _, line := range strings.Split(trim(text), "\n") {
+		split := strings.Split(line, " § ")
+		meaning := &Meaning{Value: split[0]}
+		if len(split) > 1 {
+			examples := wikt.TemplatesRE[wikt.T2Examples].FindStringSubmatch(split[1])
+			meaning.Examples = strings.Split(examples[1], wikt.ExampleSep)
 
-	// Remove proto for now. TODO: keep it?
-	proto := wikt.Templates[wikt.Proto].FindString(text)
-	text = strings.Replace(text, proto, "", -1)
+			content := strings.Replace(split[1], examples[0], "", -1)
+			headers := wikt.TemplatesRE[wikt.T2Content].FindAllStringSubmatch(content, -1)
+			values := wikt.TemplatesRE[wikt.T2Content].Split(content, -1)
+			for i := range headers {
+				switch headers[i][0] {
+				case "синонимы:":
+					for _, word := range strings.Split(values[i+1], ",") {
+						meaning.Synonyms = append(meaning.Synonyms, trim(word))
+					}
+				case "антонимы:":
+					for _, word := range strings.Split(values[i+1], ",") {
+						meaning.Antonyms = append(meaning.Antonyms, trim(word))
+					}
+				case "гиперонимы:":
+					for _, word := range strings.Split(values[i+1], ",") {
+						meaning.Hyperonyms = append(meaning.Hyperonyms, trim(word))
+					}
+				case "гипонимы:":
+					for _, word := range strings.Split(values[i+1], ",") {
+						meaning.Hyponyms = append(meaning.Hyponyms, trim(word))
+					}
+				}
+			}
+		}
 
-	lines := strings.Split(text, "\n")
-	l := len(lines)
-	meanings := make([]string, l)
-	examples := make([][]string, l)
+		meanings = append(meanings, meaning)
+	}
 
-	for i := 0; i < l; i++ {
-		split := strings.Split(lines[i], "◆")
-		meanings[i] = split[0]
+	return meanings
+}
+
+func parseMeanings(text string) ([]string, [][]string) {
+	var meanings []string
+	var examples [][]string
+	for _, line := range strings.Split(trim(text), "\n") {
+		if line == "" || line[0] == '(' || strings.Contains(line, wikt.Proto) {
+			continue
+		}
+
+		split := strings.Split(line, wikt.ExampleSep)
+		meanings = append(meanings, split[0])
+		examples = append(examples, make([]string, 0))
+		i := len(examples) - 1
 		if len(split) > 1 {
 			for _, example := range split[1:] {
-				example = strings.TrimSpace(example)
-				if !strings.Contains(empty, example) {
+				example = trim(example)
+				if !strings.Contains(wikt.MissingExample, example) {
 					examples[i] = append(examples[i], example)
 				}
 			}
 		}
 	}
 
-	return l, meanings, examples
+	return meanings, examples
 }
 
-func parseRelation(text string, relation [][]string) {
-	const empty = "-?—"
-
-	lines := strings.Split(text, "\n")
-	for i := 0; i < len(relation) && i < len(lines); i++ {
+func parseRelations(text string, relations [][]string) {
+	lines := strings.Split(trim(text), "\n")
+	for i := 0; i < len(relations) && i < len(lines); i++ {
 		for _, word := range strings.FieldsFunc(lines[i], func(r rune) bool {
 			return r == ',' || r == ';'
 		}) {
-			word = strings.TrimSpace(word)
-			if !strings.Contains(empty, word) {
-				relation[i] = append(relation[i], word)
+			word = trim(word)
+			if !strings.Contains("-?—", word) {
+				relations[i] = append(relations[i], word)
 			}
 		}
 	}
 }
 
-func parseII(text string) *utils.OrderedMap {
-	result := utils.NewOrderedMap()
-	lines := strings.Split(strings.TrimSpace(text), "\n")
-	for _, line := range lines {
-		split := strings.Split(line, " § ")
-		content := &Content{}
-		if len(split) > 1 {
-			examplesStr := wikt.Templates[wikt.T2Examples].FindStringSubmatch(split[1])
-			content.Examples = strings.Split(examplesStr[1], "◆")
-
-			contentStr := strings.Replace(split[1], examplesStr[0], "", -1)
-			matches := wikt.Templates[wikt.T2Content].FindAllStringSubmatch(contentStr, -1)
-			values := wikt.Templates[wikt.T2Content].Split(contentStr, -1)
-			for i := range matches {
-				switch matches[i][0] {
-				case "синонимы:":
-					for _, word := range strings.Split(values[i+1], ",") {
-						content.Synonyms = append(content.Synonyms, strings.TrimSpace(word))
-					}
-				case "антонимы:":
-					for _, word := range strings.Split(values[i+1], ",") {
-						content.Antonyms = append(content.Antonyms, strings.TrimSpace(word))
-					}
-				case "гиперонимы:":
-					for _, word := range strings.Split(values[i+1], ",") {
-						content.Hyperonyms = append(content.Hyperonyms, strings.TrimSpace(word))
-					}
-				case "гипонимы:":
-					for _, word := range strings.Split(values[i+1], ",") {
-						content.Hyponyms = append(content.Hyponyms, strings.TrimSpace(word))
-					}
-				}
-			}
-
-		}
-		result.Set(split[0], content)
-	}
-
-	return result
-}
-
-func parseTranslations(translationsHTML string, translations []*utils.OrderedMap) {
-	escape := []string{"м.", "ж.", "ср.", "-s", "-e"}
-
-	text, err := html2text.FromString(translationsHTML)
-	if err != nil {
-		log.Print(err)
-	}
-
+func parseTranslations(text string, ts []Translations) {
 	i := -1
 	scanner := bufio.NewScanner(strings.NewReader(text))
 
@@ -281,39 +273,75 @@ func parseTranslations(translationsHTML string, translations []*utils.OrderedMap
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line == "" {
+
+		switch {
+		case line == "":
 			continue
-		}
-
-		if line[:2] == "* " {
-			split := strings.Split(line[2:], ":")
-			lang := split[0][:strings.IndexRune(split[0], ' ')]
-			wordsStr := wikt.Templates[wikt.TranslLinks].ReplaceAllString(split[1], "")
-			for _, esc := range escape {
-				if strings.Contains(wordsStr, esc) {
-					wordsStr = strings.Replace(wordsStr, esc, "", -1)
-				}
-			}
-			var words []string
-			for _, word := range strings.FieldsFunc(wordsStr, func(r rune) bool {
-				return r == ',' || r == ';'
-			}) {
-				word = strings.TrimSpace(word)
-				if word != "" {
-					words = append(words, word)
-				}
+		case strings.HasPrefix(line, "* "):
+			matches := wikt.TemplatesRE[wikt.LinkedWord].FindAllStringSubmatch(line, -1)
+			if len(matches) == 0 {
+				continue
 			}
 
-			if prevWords := translations[i].ByKey(lang); prevWords != nil {
-				words = append(prevWords.([]string), words...)
+			var values []string
+			for _, value := range matches[1:] {
+				values = append(values, value[1])
 			}
 
-			translations[i].Set(lang, words)
-		} else {
+			ts[i] = append(ts[i], &Translation{Language: matches[0][1], Values: values})
+		default:
 			i++
-			if i >= len(translations) {
+			if i >= len(ts) {
 				return
 			}
 		}
 	}
+}
+
+func parseTranslationsForeign(text string, ts []Translations) {
+	idx := strings.Index(text, wikt.Meanings+" * ")
+	if idx == -1 {
+		return
+	}
+
+	i := 0
+	text = strings.TrimPrefix(text[idx:], wikt.Meanings+" ")
+	scanner := bufio.NewScanner(strings.NewReader(text))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "* ") {
+			return
+		}
+
+		// Cut off examples
+		if i := strings.Index(line, wikt.ExampleSep); i != -1 {
+			line = line[:i]
+		}
+
+		var values []string
+		for _, field := range strings.FieldsFunc(line, func(r rune) bool {
+			return r == ',' || r == ';'
+		}) {
+			field = strings.Replace(field, "сленг", "", -1)
+			field = strings.Replace(field, "табу", "", -1)
+
+			matches := wikt.TemplatesRE[wikt.LinkedWordRu].FindAllStringSubmatch(field, -1)
+			if len(matches) != 1 {
+				continue
+			}
+
+			values = append(values, matches[0][1])
+		}
+
+		if len(values) > 0 {
+			ts[i] = append(ts[i], &Translation{Language: wikt.Russian, Values: values})
+		}
+
+		i++
+	}
+}
+
+func trim(text string) string {
+	return strings.TrimSpace(text)
 }
