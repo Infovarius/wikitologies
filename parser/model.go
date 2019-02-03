@@ -39,6 +39,15 @@ func (ss Sections) ByHeader(header string) *Section {
 	return nil
 }
 
+func (ss Sections) Headers() []string {
+	var headers []string
+	for _, s := range ss {
+		headers = append(headers, s.Header)
+	}
+
+	return headers
+}
+
 type SubSections struct {
 	Level    wikt.Level
 	Sections Sections
