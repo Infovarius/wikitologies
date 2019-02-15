@@ -8,10 +8,11 @@ import (
 )
 
 type Section struct {
-	Number      int
 	Header      string
 	Text        string
-	SubSections *SubSections
+	Number      int
+	Level       wikt.Level
+	SubSections Sections
 }
 
 func (s Section) String() string {
@@ -46,11 +47,6 @@ func (ss Sections) Headers() []string {
 	}
 
 	return headers
-}
-
-type SubSections struct {
-	Level    wikt.Level
-	Sections Sections
 }
 
 type Meaning struct {

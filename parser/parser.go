@@ -17,21 +17,21 @@ func ParseText(text string) Sections {
 	for _, l1section := range l1sections {
 		l2sections := parseSection(l1section.Text, wikt.L2)
 		if len(l2sections) > 0 {
-			l1section.SubSections = &SubSections{Level: wikt.L2, Sections: l2sections}
+			l1section.SubSections = l2sections
 			l1section.Number = number
 			number++
 
 			for _, l2section := range l2sections {
 				l3sections := parseSection(l2section.Text, wikt.L3)
 				if len(l3sections) > 0 {
-					l2section.SubSections = &SubSections{Level: wikt.L3, Sections: l3sections}
+					l2section.SubSections = l3sections
 					l2section.Number = number
 					number++
 
 					for _, l3section := range l3sections {
 						l4sections := parseSection(l3section.Text, wikt.L4)
 						if len(l4sections) > 0 {
-							l3section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
+							l3section.SubSections = l4sections
 							l3section.Number = number
 							number++
 
@@ -47,7 +47,7 @@ func ParseText(text string) Sections {
 				} else {
 					l4sections := parseSection(l2section.Text, wikt.L4)
 					if len(l4sections) > 0 {
-						l2section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
+						l2section.SubSections = l4sections
 						l2section.Number = number
 						number++
 
@@ -64,14 +64,14 @@ func ParseText(text string) Sections {
 		} else {
 			l3sections := parseSection(l1section.Text, wikt.L3)
 			if len(l3sections) > 0 {
-				l1section.SubSections = &SubSections{Level: wikt.L3, Sections: l3sections}
+				l1section.SubSections = l3sections
 				l1section.Number = number
 				number++
 
 				for _, l3section := range l3sections {
 					l4sections := parseSection(l3section.Text, wikt.L4)
 					if len(l4sections) > 0 {
-						l3section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
+						l3section.SubSections = l4sections
 						l3section.Number = number
 						number++
 
@@ -87,7 +87,7 @@ func ParseText(text string) Sections {
 			} else {
 				l4sections := parseSection(l1section.Text, wikt.L4)
 				if len(l4sections) > 0 {
-					l1section.SubSections = &SubSections{Level: wikt.L4, Sections: l4sections}
+					l1section.SubSections = l4sections
 					l1section.Number = number
 					number++
 
@@ -108,7 +108,7 @@ func ParseText(text string) Sections {
 
 func ParseMeanings(semProps *Section) Meanings {
 	if semProps.SubSections != nil {
-		return parseI(semProps.SubSections.Sections)
+		return parseI(semProps.SubSections)
 	} else {
 		return parseII(semProps.Text)
 	}
@@ -139,7 +139,7 @@ func parseSection(text string, lvl wikt.Level) Sections {
 
 	var sections Sections
 	for i := range headers {
-		sections = append(sections, &Section{Header: headers[i][1], Text: texts[i+1]})
+		sections = append(sections, &Section{Header: headers[i][1], Text: texts[i+1], Level: lvl})
 	}
 
 	return sections

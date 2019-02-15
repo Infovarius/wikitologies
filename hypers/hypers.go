@@ -19,14 +19,14 @@ func FindAll(titles []string, lang string) [][]string {
 			continue
 		}
 
-		if section.SubSections.Level == wikt.L2 {
-			section = section.SubSections.Sections[0]
+		if section.SubSections[0].Level == wikt.L2 {
+			section = section.SubSections[0]
 			if section.SubSections == nil {
 				continue
 			}
 		}
 
-		semProps := section.SubSections.Sections.ByHeader(wikt.SemProps)
+		semProps := section.SubSections.ByHeader(wikt.SemProps)
 		if semProps == nil {
 			continue
 		}

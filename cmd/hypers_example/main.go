@@ -11,23 +11,23 @@ import (
 const title = "prison"
 
 func main() {
-	// Shorter version of example_parser.go
+	// Shorter version of parser_example.go
 	// Don't do that, you should always check errors!
 	text, _ := wikt.GetText(title)
 	s := parser.ParseText(text)[0]
 	lang := s.Header
 	foreign := lang != wikt.Russian
-	if s.SubSections.Level == wikt.L2 {
-		s = s.SubSections.Sections[0]
+	if s.SubSections[0].Level == wikt.L2 {
+		s = s.SubSections[0]
 	}
 
-	semProps := s.SubSections.Sections.ByHeader(wikt.SemProps)
+	semProps := s.SubSections.ByHeader(wikt.SemProps)
 	meanings := parser.ParseMeanings(semProps)
 	var html string
 	if foreign {
-		html, _ = wikt.GetSectionHTML(title, semProps.SubSections.Sections.ByHeader(wikt.Meanings).Number)
+		html, _ = wikt.GetSectionHTML(title, semProps.SubSections.ByHeader(wikt.Meanings).Number)
 	} else {
-		html, _ = wikt.GetSectionHTML(title, s.SubSections.Sections.ByHeader(wikt.Translations).Number)
+		html, _ = wikt.GetSectionHTML(title, s.SubSections.ByHeader(wikt.Translations).Number)
 	}
 	parser.ParseTranslations(meanings, foreign, html)
 
