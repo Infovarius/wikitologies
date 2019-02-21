@@ -21,15 +21,6 @@ func (s Section) String() string {
 
 type Sections []*Section
 
-func (ss Sections) String() string {
-	var str strings.Builder
-	for i, s := range ss {
-		str.WriteString(fmt.Sprintf("%d. %s\n", i, s))
-	}
-
-	return str.String()
-}
-
 func (ss Sections) ByHeader(header string) *Section {
 	for _, s := range ss {
 		if s.Header == header {
@@ -60,34 +51,10 @@ type Meaning struct {
 }
 
 func (m Meaning) String() string {
-	parts := []string{m.Value}
-
-	if len(m.Synonyms) > 0 {
-		parts = append(parts, fmt.Sprintf("Synonyms: %s", strings.Join(m.Synonyms, ", ")))
-	}
-	if len(m.Antonyms) > 0 {
-		parts = append(parts, fmt.Sprintf("Antonyms: %s", strings.Join(m.Antonyms, ", ")))
-	}
-	if len(m.Hyperonyms) > 0 {
-		parts = append(parts, fmt.Sprintf("Hyperonyms: %s", strings.Join(m.Hyperonyms, ", ")))
-	}
-	if len(m.Hyponyms) > 0 {
-		parts = append(parts, fmt.Sprintf("Hyponyms: %s", strings.Join(m.Hyponyms, ", ")))
-	}
-
-	return strings.Join(parts, "\n")
+	return m.Value
 }
 
 type Meanings []*Meaning
-
-func (ms Meanings) String() string {
-	var str strings.Builder
-	for i, m := range ms {
-		str.WriteString(fmt.Sprintf("%d. %s\n", i, m))
-	}
-
-	return str.String()
-}
 
 type Translation struct {
 	Language string
@@ -99,12 +66,3 @@ func (t Translation) String() string {
 }
 
 type Translations []*Translation
-
-func (ts Translations) String() string {
-	var str strings.Builder
-	for _, t := range ts {
-		str.WriteString(fmt.Sprintln(t))
-	}
-
-	return str.String()
-}

@@ -288,7 +288,9 @@ func parseTranslations(text string, ts []Translations) {
 				values = append(values, value[1])
 			}
 
-			ts[i] = append(ts[i], &Translation{Language: matches[0][1], Values: values})
+			if len(values) > 0 {
+				ts[i] = append(ts[i], &Translation{Language: matches[0][1], Values: values})
+			}
 		default:
 			i++
 			if i >= len(ts) {
