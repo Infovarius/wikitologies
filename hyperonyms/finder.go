@@ -41,9 +41,11 @@ func Find(titles []string, lang string) map[string][]string {
 			}
 
 			for _, meaning := range parser.ParseMeanings(semProps) {
-				mu.Lock()
-				hs[title] = append(hs[title], meaning.Hyperonyms...)
-				mu.Unlock()
+				if len(meaning.Hyperonyms) > 0 {
+					mu.Lock()
+					hs[title] = append(hs[title], meaning.Hyperonyms...)
+					mu.Unlock()
+				}
 			}
 
 			wg.Done()
