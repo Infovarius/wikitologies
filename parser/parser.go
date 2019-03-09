@@ -11,99 +11,32 @@ import (
 )
 
 func ParseText(text string) Sections {
-	number := 1
-	l1sections := parseSection(text, wikt.L1)
+	n := 1
+	stack := make(stack, 0)
 
-	for _, l1section := range l1sections {
-		l2sections := parseSection(l1section.Text, wikt.L2)
-		if len(l2sections) > 0 {
-			l1section.SubSections = l2sections
-			l1section.Number = number
-			number++
+	var sections Sections
+	for lvl := wikt.L1; lvl <= wikt.L4; lvl++ {
+		if sections = parseSection(text, lvl); len(sections) > 0 {
+			stack.push(sections)
+			break
+		}
+	}
 
-			for _, l2section := range l2sections {
-				l3sections := parseSection(l2section.Text, wikt.L3)
-				if len(l3sections) > 0 {
-					l2section.SubSections = l3sections
-					l2section.Number = number
-					number++
+	for !stack.empty() {
+		section := stack.pop()
+		section.Number = n
+		n++
 
-					for _, l3section := range l3sections {
-						l4sections := parseSection(l3section.Text, wikt.L4)
-						if len(l4sections) > 0 {
-							l3section.SubSections = l4sections
-							l3section.Number = number
-							number++
-
-							for _, l4section := range l4sections {
-								l4section.Number = number
-								number++
-							}
-						} else {
-							l3section.Number = number
-							number++
-						}
-					}
-				} else {
-					l4sections := parseSection(l2section.Text, wikt.L4)
-					if len(l4sections) > 0 {
-						l2section.SubSections = l4sections
-						l2section.Number = number
-						number++
-
-						for _, l4section := range l4sections {
-							l4section.Number = number
-							number++
-						}
-					} else {
-						l2section.Number = number
-						number++
-					}
-				}
-			}
-		} else {
-			l3sections := parseSection(l1section.Text, wikt.L3)
-			if len(l3sections) > 0 {
-				l1section.SubSections = l3sections
-				l1section.Number = number
-				number++
-
-				for _, l3section := range l3sections {
-					l4sections := parseSection(l3section.Text, wikt.L4)
-					if len(l4sections) > 0 {
-						l3section.SubSections = l4sections
-						l3section.Number = number
-						number++
-
-						for _, l4section := range l4sections {
-							l4section.Number = number
-							number++
-						}
-					} else {
-						l3section.Number = number
-						number++
-					}
-				}
-			} else {
-				l4sections := parseSection(l1section.Text, wikt.L4)
-				if len(l4sections) > 0 {
-					l1section.SubSections = l4sections
-					l1section.Number = number
-					number++
-
-					for _, l4section := range l4sections {
-						l4section.Number = number
-						number++
-					}
-				} else {
-					l1section.Number = number
-					number++
-				}
+		for lvl := section.Level + 1; lvl <= wikt.L4; lvl++ {
+			if subs := parseSection(section.Text, lvl); len(subs) > 0 {
+				section.SubSections = subs
+				stack.push(subs)
+				break
 			}
 		}
 	}
 
-	return l1sections
+	return sections
 }
 
 func ParseMeanings(semProps *Section) Meanings {
