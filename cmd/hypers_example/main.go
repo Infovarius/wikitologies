@@ -38,22 +38,22 @@ func main() {
 
 	fmt.Println("+ by synonyms:")
 	hs := hyperonyms.Find(meanings[0].Synonyms, lang)
-	for _, s := range meanings[0].Synonyms {
-		if len(hs[s]) > 0 {
-			fmt.Printf("%s: %s\n", s, hs[s])
+	for k, v := range hs {
+		if len(v) > 0 {
+			fmt.Printf("%s: %s\n", k, v)
 		}
 	}
 
 	// Better use search by translations only with foreign words.
 	// Russian words usually have lots of translations,
 	// so it will take a long time to parse everything.
-	if foreign {
+	if foreign && len(meanings[0].Translations) > 0 {
 		fmt.Println("+ by translation to russian:")
 		t := meanings[0].Translations[0]
 		hs := hyperonyms.Find(t.Values, t.Language)
-		for _, v := range t.Values {
-			if len(hs[v]) > 0 {
-				fmt.Printf("%s: %s\n", v, hs[v])
+		for k, v := range hs {
+			if len(v) > 0 {
+				fmt.Printf("%s: %s\n", k, v)
 			}
 		}
 	}

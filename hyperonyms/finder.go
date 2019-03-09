@@ -17,38 +17,51 @@ func Find(titles []string, lang string) map[string][]string {
 		title := titles[i]
 
 		go func() {
+			defer wg.Done()
+
 			text, err := wikt.GetText(title)
 			if err != nil {
 				return
 			}
 
-			sections := parser.ParseText(text)
-			section := sections.ByHeader(lang)
-			if section == nil || section.SubSections == nil {
+			s1 := parser.ParseText(text).ByHeader(lang)
+			if s1 == nil || s1.SubSections == nil {
 				return
 			}
 
-			if section.SubSections[0].Level == wikt.L2 {
-				section = section.SubSections[0]
-				if section.SubSections == nil {
+			if s1.SubSections[0].Level == wikt.L2 {
+				for _, s2 := range s1.SubSections {
+					if s2.SubSections == nil {
+						continue
+					}
+
+					semProps := s2.SubSections.ByHeader(wikt.SemProps)
+					if semProps == nil {
+						continue
+					}
+
+					for _, m := range parser.ParseMeanings(semProps) {
+						if len(m.Hyperonyms) > 0 {
+							mu.Lock()
+							hs[s2.Header] = append(hs[s2.Header], m.Hyperonyms...)
+							mu.Unlock()
+						}
+					}
+				}
+			} else {
+				semProps := s1.SubSections.ByHeader(wikt.SemProps)
+				if semProps == nil {
 					return
 				}
-			}
 
-			semProps := section.SubSections.ByHeader(wikt.SemProps)
-			if semProps == nil {
-				return
-			}
-
-			for _, meaning := range parser.ParseMeanings(semProps) {
-				if len(meaning.Hyperonyms) > 0 {
-					mu.Lock()
-					hs[title] = append(hs[title], meaning.Hyperonyms...)
-					mu.Unlock()
+				for _, m := range parser.ParseMeanings(semProps) {
+					if len(m.Hyperonyms) > 0 {
+						mu.Lock()
+						hs[title] = append(hs[title], m.Hyperonyms...)
+						mu.Unlock()
+					}
 				}
 			}
-
-			wg.Done()
 		}()
 	}
 
