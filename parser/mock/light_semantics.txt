@@ -1,0 +1,37 @@
+
+=== Семантические свойства ===
+
+
+==== Значение ====
+свет ◆ the light of the sun — свет солнца
+огонь, лампа, лампочка ◆ distant city lights — огни города вдали    ◆ lights were burning in every room — во всех комнатах горели лампы    ◆ the red light on the control panel started flashing — замигала красная лампочка на панели управления
+разг. то, чем можно прикурить или зажечь (спички, зажигалка и т. п.) ◆ Hey, buddy, got a light?‎ — Слушай, дружок, прикурить не найдётся?
+разг. светофор ◆ Turn left at the next light. — На следующем светофоре налево.
+
+
+==== Синонимы ====
+electromagnetic radiation
+emitter, source
+ ?
+traffic light, stop light
+
+
+==== Антонимы ====
+darkness
+—
+—
+—
+
+
+==== Гиперонимы ====
+radiation
+ ?
+ ?
+signal, device
+
+
+==== Гипонимы ====
+infrared light
+lamp
+lighter, match
+—
