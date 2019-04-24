@@ -123,12 +123,16 @@ func parseII(text string) Meanings {
 		split := strings.Split(line, " § ")
 		meaning := &Meaning{Value: split[0]}
 		if len(split) > 1 {
-			examples := wikt.TemplatesRE[wikt.T2Examples].FindStringSubmatch(split[1])
-			meaning.Examples = strings.Split(examples[1], wikt.ExampleSep)
+			headers := wikt.TemplatesRE[wikt.T2Content].FindAllStringSubmatch(split[1], -1)
+			values := wikt.TemplatesRE[wikt.T2Content].Split(split[1], -1)
 
-			content := strings.Replace(split[1], examples[0], "", -1)
-			headers := wikt.TemplatesRE[wikt.T2Content].FindAllStringSubmatch(content, -1)
-			values := wikt.TemplatesRE[wikt.T2Content].Split(content, -1)
+			for _, example := range strings.Split(values[0], wikt.ExampleSep) {
+				example = trim(example)
+				if example != "" && example != wikt.MissingExample {
+					meaning.Examples = append(meaning.Examples, example)
+				}
+			}
+
 			for i := range headers {
 				switch headers[i][0] {
 				case "синонимы:":

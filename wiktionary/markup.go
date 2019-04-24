@@ -25,14 +25,12 @@ type Template string
 const (
 	LinkedWord   Template = "Linked word"
 	LinkedWordRu Template = "Linked word (russian)"
-	T2Examples   Template = "Type 2 examples"
 	T2Content    Template = "Type 2 synonyms, antonyms, etc."
 )
 
 var TemplatesRE = map[Template]*regexp.Regexp{
 	LinkedWord:   regexp.MustCompile(`(\p{L}+) \( /w`),
 	LinkedWordRu: regexp.MustCompile(`([а-яё]+) \( /w`),
-	T2Examples:   regexp.MustCompile("◆ (.*) {4}"),
 	T2Content:    regexp.MustCompile("синонимы:|конверсивы:|антонимы:|гиперонимы:|гипонимы:|согипонимы:|холонимы:|меронимы:|управление:|категории:"), // якорь? язык?
 }
 

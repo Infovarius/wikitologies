@@ -11,7 +11,6 @@ import (
 const title = "prison"
 
 func main() {
-	// Shorter version of parser_example.go
 	// Don't do that, you should always check errors!
 	text, _ := wikt.GetText(title)
 	section := parser.ParseText(text)[0]
