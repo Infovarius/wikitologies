@@ -14,10 +14,6 @@ func (s *stack) push(sections Sections) {
 
 func (s *stack) pop() *Section {
 	l := len(*s)
-	if l == 0 {
-		return nil
-	}
-
 	last := (*s)[l-1]
 	*s = (*s)[:l-1]
 

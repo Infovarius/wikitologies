@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>[BETA]</title>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <style>
+        html, body, form, .container, .form-row {
+            height: 100%
+        }
+    </style>
+
+    <script>
+        let title, lang, strict;
+
+        function init() {
+            document.getElementById("title").addEventListener("keyup", function () {
+                title = this.value;
+                setURL();
+                document.getElementById("submit").disabled = title === "";
+            });
+            document.getElementById("lang").addEventListener("keyup", function () {
+                lang = this.value;
+                setURL();
+            });
+            document.getElementById("strict").addEventListener("click", function () {
+                strict = this.value;
+                setURL();
+            })
+        }
+
+        function setURL() {
+            let url = "/" + title;
+            if (lang !== "" && lang !== undefined) {
+                url += ":" + lang;
+            }
+            if (strict) {
+                url += "?" + "strict=true";
+            }
+            document.getElementById("form").setAttribute("action", url)
+        }
+
+        window.addEventListener("load", init)
+    </script>
+</head>
+
+<body>
+<nav class="navbar navbar-dark bg-dark">
+    <a class="navbar-brand" href="/">HOME</a>
+</nav>
+
+<div class="container">
+    <form id="form" method="post">
+        <div class="form-row align-items-center justify-content-center">
+            <div class="col-auto">
+                <input id="title" type="text" class="form-control" placeholder="Слово">
+            </div>
+
+            <div class="col-auto">
+                <input id="lang" type="text" class="form-control" placeholder="Язык">
+            </div>
+
+            <div class="col-auto">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="strict">
+                    <label class="form-check-label" for="strict">"Строгий" режим</label>
+                </div>
+            </div>
+
+            <div class="col-auto">
+                <button id="submit" type="submit" class="btn btn-dark" disabled>Построить</button>
+            </div>
+        </div>
+    </form>
+</div>
+</body>
+</html>

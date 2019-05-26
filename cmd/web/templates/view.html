@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.Title}}</title>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <style>
+        .node {
+            cursor: pointer;
+        }
+    </style>
+
+    <script>
+        function init() {
+            const nodes = document.getElementsByClassName("node");
+            for (let i = 0; i < nodes.length; i++) {
+                nodes[i].addEventListener("click", function () {
+                    document.getElementById("node").textContent = this.children[0].textContent;
+                    document.getElementById("text").textContent = this.children[1].children[0].getAttribute("xlink:title");
+                    document.getElementById("submit").removeAttribute("disabled");
+                    document.getElementById("form").setAttribute("action", "/edit/" + this.children[0].textContent);
+                })
+            }
+        }
+
+        window.addEventListener("load", init)
+    </script>
+</head>
+
+<body>
+<nav class="navbar navbar-dark bg-dark">
+    <a class="navbar-brand" href="/">HOME</a>
+</nav>
+
+<div class="container">
+    <div class="row">
+        <div id="graph" class="col">
+            {{svg .Title .Lang .Strict .Params}}
+        </div>
+
+        <div id="meaning" class="col">
+            <div class="sticky-top">
+                <form id="form">
+                    <div class="form-group">
+                        <label id="node" for="text">значение</label>
+                        <textarea id="text"
+                                  class="form-control"
+                                  readonly
+                                  rows="10">
+                    </textarea>
+                    </div>
+                    <button id="submit" type="submit" class="btn btn-dark" disabled>Изменить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

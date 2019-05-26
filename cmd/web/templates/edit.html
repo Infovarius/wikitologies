@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{.Title}}</title>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+
+    <script>
+        function init() {
+            const items = document.getElementsByTagName("li");
+            for (let i = 0; i < items.length; i++) {
+                items[i].addEventListener("click", function () {
+                    for (let j = 0; j < items.length; j++) {
+                        items[j].classList.remove("list-group-item-dark");
+                    }
+                    items[i].classList.add("list-group-item-dark");
+                    document.getElementById("submit").removeAttribute("disabled");
+                    let url = document.referrer;
+                    if (!url.includes("?")) {
+                        url += "?"
+                    }
+                    url += "&" + {{.Title}} +"=" + items[i].id;
+                    document.getElementById("form").setAttribute("action", url)
+                })
+            }
+        }
+
+        window.addEventListener("load", init);
+    </script>
+</head>
+
+<body>
+<nav class="navbar navbar-dark bg-dark">
+    <a class="navbar-brand" href="/">HOME</a>
+</nav>
+
+<div class="container">
+    <div class="row">
+        <form id="form" method="post" style="width: 100%">
+            <div class="form-group">
+                <h1>{{.Title}}</h1>
+            </div>
+
+            <div class="form-group">
+                <ul class="list-group">
+                    {{range $index, $value := .Values}}
+                        <li id="{{$index}}" class="list-group-item" style="cursor: pointer">{{$value}}</li>
+                    {{end}}
+                </ul>
+            </div>
+            <button id="submit" type="submit" class="btn btn-dark" disabled>Выбрать</button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

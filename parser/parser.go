@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"strings"
 
@@ -64,6 +65,66 @@ func ParseTranslations(meanings Meanings, foreign bool, html string) {
 	for i := range meanings {
 		meanings[i].Translations = translations[i]
 	}
+}
+
+func NewWord(title string, sections Sections) Word {
+	var word Word
+	for _, s := range sections {
+		if s.SubSections == nil {
+			continue
+		}
+
+		foreign := s.Header != wikt.Russian
+		f := func(s *Section) Meanings {
+			semProps := s.SubSections.ByHeader(wikt.SemProps)
+			if semProps == nil {
+				return nil
+			}
+
+			var html string
+			var err error
+			if foreign {
+				meanings := semProps.SubSections.ByHeader(wikt.Meanings)
+				if meanings != nil {
+					html, err = wikt.GetSectionHTML(title, meanings.Number)
+					if err != nil {
+						panic(err)
+					}
+				}
+			} else {
+				translations := s.SubSections.ByHeader(wikt.Translations)
+				if translations != nil {
+					html, err = wikt.GetSectionHTML(title, translations.Number)
+					if err != nil {
+						panic(err)
+					}
+				}
+			}
+
+			meanings := ParseMeanings(semProps)
+			ParseTranslations(meanings, foreign, html)
+
+			return meanings
+		}
+
+		var meanings Meanings
+		if s.SubSections[0].Level == wikt.L2 {
+			for _, s2 := range s.SubSections {
+				for _, m := range f(s2) {
+					m.Value = fmt.Sprintf("%s: %s", s2.Header, m.Value)
+					meanings = append(meanings, m)
+				}
+			}
+		} else {
+			meanings = f(s)
+		}
+		word = append(word, struct {
+			Language string
+			Meanings Meanings
+		}{Language: s.Header, Meanings: meanings})
+	}
+
+	return word
 }
 
 func parseSection(text string, lvl wikt.Level) Sections {

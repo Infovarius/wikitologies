@@ -1,9 +1,6 @@
 package parser
 
 import (
-	"fmt"
-	"strings"
-
 	wikt "github.com/stillpiercer/wikitologies/wiktionary"
 )
 
@@ -13,10 +10,6 @@ type Section struct {
 	Number      int
 	Level       wikt.Level
 	SubSections Sections
-}
-
-func (s Section) String() string {
-	return s.Header
 }
 
 type Sections []*Section
@@ -40,6 +33,21 @@ func (ss Sections) Headers() []string {
 	return headers
 }
 
+type Word []struct {
+	Language string
+	Meanings Meanings
+}
+
+func (w Word) ByLanguage(lang string) Meanings {
+	for _, v := range w {
+		if v.Language == lang {
+			return v.Meanings
+		}
+	}
+
+	return nil
+}
+
 type Meaning struct {
 	Value        string
 	Examples     []string
@@ -50,19 +58,11 @@ type Meaning struct {
 	Translations Translations
 }
 
-func (m Meaning) String() string {
-	return m.Value
-}
-
 type Meanings []*Meaning
 
 type Translation struct {
 	Language string
 	Values   []string
-}
-
-func (t Translation) String() string {
-	return fmt.Sprintf("%s: %s", t.Language, strings.Join(t.Values, ", "))
 }
 
 type Translations []*Translation
