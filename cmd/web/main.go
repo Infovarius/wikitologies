@@ -22,14 +22,14 @@ const (
 )
 
 var (
-	mainTemplate = template.Must(template.ParseFiles("templates/main.html"))
+	mainTemplate = template.Must(template.ParseFiles("../templates/main.html"))
 
 	viewTemplate = template.Must(template.
 			New("view.html").
 			Funcs(template.FuncMap{"svg": svg}).
-			ParseFiles("templates/view.html"))
+			ParseFiles("../templates/view.html"))
 
-	editTemplate = template.Must(template.ParseFiles("templates/edit.html"))
+	editTemplate = template.Must(template.ParseFiles("../templates/edit.html"))
 )
 
 func main() {
