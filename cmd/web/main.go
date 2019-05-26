@@ -22,17 +22,24 @@ const (
 )
 
 var (
-	mainTemplate = template.Must(template.ParseFiles("../templates/main.html"))
-
-	viewTemplate = template.Must(template.
-			New("view.html").
-			Funcs(template.FuncMap{"svg": svg}).
-			ParseFiles("../templates/view.html"))
-
-	editTemplate = template.Must(template.ParseFiles("../templates/edit.html"))
+	mainTemplate *template.Template
+	viewTemplate *template.Template
+	editTemplate *template.Template
 )
 
 func main() {
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	mainTemplate = template.Must(template.ParseFiles(wd + "/templates/main.html"))
+	viewTemplate = template.Must(template.
+		New("view.html").
+		Funcs(template.FuncMap{"svg": svg}).
+		ParseFiles(wd + "/templates/view.html"))
+	editTemplate = template.Must(template.ParseFiles(wd + "/templates/edit.html"))
+
 	r := mux.NewRouter()
 	r.HandleFunc("/", mainHandler)
 	r.HandleFunc("/{title}", viewHandler)
