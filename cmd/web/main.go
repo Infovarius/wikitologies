@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -13,12 +15,11 @@ import (
 
 	"github.com/stillpiercer/wikitologies/graph"
 	"github.com/stillpiercer/wikitologies/parser"
-	wikt "github.com/stillpiercer/wikitologies/wiktionary"
 )
 
 const (
-	PNG = "png"
 	SVG = "svg"
+	DOT = "dot"
 )
 
 var (
@@ -32,11 +33,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	mainTemplate = template.Must(template.ParseFiles(wd + "/templates/main.html"))
 	viewTemplate = template.Must(template.
 		New("view.html").
-		Funcs(template.FuncMap{"svg": svg}).
+		Funcs(template.FuncMap{"draw": draw}).
 		ParseFiles(wd + "/templates/view.html"))
 	editTemplate = template.Must(template.ParseFiles(wd + "/templates/edit.html"))
 
@@ -44,7 +44,7 @@ func main() {
 	r.HandleFunc("/", mainHandler)
 	r.HandleFunc("/{title}", viewHandler)
 	r.HandleFunc("/edit/{title}", editHandler)
-	r.HandleFunc("/save/{title}", saveHandler)
+	r.HandleFunc("/save/{format}/{title}", saveHandler)
 	if err := http.ListenAndServe(":"+os.Getenv("PORT"), recovery(r)); err != nil {
 		panic(err)
 	}
@@ -58,26 +58,8 @@ func mainHandler(w http.ResponseWriter, _ *http.Request) {
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
-	split := strings.Split(mux.Vars(r)["title"], ":")
-	title, lang := split[0], ""
-	if len(split) > 1 {
-		lang = split[1]
-	}
-
-	params := make(map[string]int)
-	for k, v := range r.URL.Query() {
-		value, err := strconv.Atoi(v[0])
-		if err != nil {
-			continue
-		}
-
-		params[k] = value
-	}
-
-	var strict bool
-	if r.URL.Query().Get("strict") == "true" {
-		strict = true
-	}
+	title, lang := parseTitleLang(r)
+	strict, params := parseStrictParams(r)
 
 	data := struct {
 		Title  string
@@ -98,24 +80,19 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request) {
-	split := strings.Split(mux.Vars(r)["title"], ":")
-	title, lang := split[0], ""
-	if len(split) > 1 {
-		lang = split[1]
-	}
+	title, lang := parseTitleLang(r)
 
-	text, err := wikt.GetText(title)
+	word, err := parser.Parse(title)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
-	sections := parser.ParseText(text)
-	word := parser.NewWord(title, sections)
 	var meanings parser.Meanings
 	if lang != "" {
 		meanings = word.ByLanguage(lang)
 	} else {
+		lang = word[0].Language
 		meanings = word[0].Meanings
 	}
 	if meanings == nil {
@@ -123,17 +100,14 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var values []string
-	for _, m := range meanings {
-		values = append(values, m.Value)
-	}
-
 	data := struct {
-		Title  string
-		Values []string
+		Title    string
+		Lang     string
+		Meanings parser.Meanings
 	}{
-		Title:  title,
-		Values: values,
+		Title:    title,
+		Lang:     lang,
+		Meanings: meanings,
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -143,30 +117,74 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveHandler(w http.ResponseWriter, r *http.Request) {
-	format := r.URL.Query().Get("format")
-	if format == "" {
-		format = PNG
-	}
+	title, lang := parseTitleLang(r)
+	strict, params := parseStrictParams(r)
+	format := mux.Vars(r)["format"]
 
-	w.Header().Set("Content-Disposition", "attachment; filename=WHATEVER_YOU_WANT")
-	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
-}
-
-func svg(title, lang string, strict bool, params map[string]int) template.HTML {
-	g, err := graph.Build(title, lang, strict, params)
-	if err != nil {
-		return template.HTML(err.Error())
-	}
-
-	cmd := exec.Command("dot", "-Tsvg")
-	cmd.Stdin = strings.NewReader(g.String())
-
-	out, err := cmd.Output()
+	data, err := dot(title, lang, strict, params, format)
 	if err != nil {
 		panic(err)
 	}
 
-	return template.HTML(out)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.%s", title, format))
+	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
+	if _, err := io.Copy(w, bytes.NewReader(data)); err != nil {
+		panic(err)
+	}
+}
+
+func parseTitleLang(r *http.Request) (string, string) {
+	split := strings.Split(mux.Vars(r)["title"], ":")
+	title, lang := split[0], ""
+	if len(split) > 1 {
+		lang = split[1]
+	}
+
+	return title, lang
+}
+
+func parseStrictParams(r *http.Request) (bool, map[string]int) {
+	var strict bool
+	if r.URL.Query().Get("strict") == "true" {
+		strict = true
+	}
+
+	params := make(map[string]int)
+	for k, v := range r.URL.Query() {
+		last := len(v) - 1
+		value, err := strconv.Atoi(v[last])
+		if err != nil {
+			continue
+		}
+		params[k] = value
+	}
+
+	return strict, params
+}
+
+func dot(title, lang string, strict bool, params map[string]int, format string) ([]byte, error) {
+	g, err := graph.Build(title, lang, strict, params)
+	if err != nil {
+		return nil, err
+	}
+
+	if format == DOT {
+		return []byte(g.String()), nil
+	}
+
+	cmd := exec.Command("dot", "-T"+format)
+	cmd.Stdin = strings.NewReader(g.String())
+
+	return cmd.Output()
+}
+
+func draw(title, lang string, strict bool, params map[string]int) template.HTML {
+	data, err := dot(title, lang, strict, params, SVG)
+	if err != nil {
+		return template.HTML(err.Error())
+	}
+
+	return template.HTML(data)
 }
 
 func recovery(handler http.Handler) http.Handler {

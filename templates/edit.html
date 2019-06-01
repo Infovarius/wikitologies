@@ -18,6 +18,7 @@
                         items[j].classList.remove("list-group-item-dark");
                     }
                     items[i].classList.add("list-group-item-dark");
+
                     document.getElementById("submit").removeAttribute("disabled");
                     let url = document.referrer;
                     if (!url.includes("?")) {
@@ -35,20 +36,28 @@
 
 <body>
 <nav class="navbar navbar-dark bg-dark">
-    <a class="navbar-brand" href="/">HOME</a>
+    <a class="navbar-brand" href="/">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Wiktfavicon_en.svg/1024px-Wiktfavicon_en.svg.png"
+             width="40" height="40" alt="">
+        <span>{{.Title}} ({{.Lang}})</span>
+    </a>
 </nav>
 
-<div class="container">
+<div class="container mt-2">
     <div class="row">
         <form id="form" method="post" style="width: 100%">
             <div class="form-group">
-                <h1>{{.Title}}</h1>
-            </div>
-
-            <div class="form-group">
                 <ul class="list-group">
-                    {{range $index, $value := .Values}}
-                        <li id="{{$index}}" class="list-group-item" style="cursor: pointer">{{$value}}</li>
+                    {{range $i, $m := .Meanings}}
+                        <li id="{{$i}}" class="list-group-item" style="cursor: pointer">
+                            {{$i}}. {{$m.Value}}<br>
+                            {{range $m.Examples}}
+                                <small>&bull; {{.}}</small><br>
+                            {{end}}
+                            {{if $m.Hyperonyms}}
+                                <small>Гиперонимы: {{$m.Hyperonyms}}</small>
+                            {{end}}
+                        </li>
                     {{end}}
                 </ul>
             </div>

@@ -66,3 +66,13 @@ type Translation struct {
 }
 
 type Translations []*Translation
+
+func (ts Translations) ByLanguage(lang string) []string {
+	for _, t := range ts {
+		if t.Language == lang {
+			return t.Values
+		}
+	}
+
+	return nil
+}

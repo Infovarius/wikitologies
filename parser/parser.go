@@ -1,21 +1,63 @@
 package parser
 
 import (
-	"bufio"
 	"fmt"
-	"log"
 	"strings"
-
-	"github.com/jaytaylor/html2text"
 
 	wikt "github.com/stillpiercer/wikitologies/wiktionary"
 )
 
-func ParseText(text string) Sections {
-	n := 1
-	stack := make(stack, 0)
+func Parse(title string) (Word, error) {
+	text, err := wikt.GetText(title)
+	if err != nil {
+		return nil, err
+	}
 
+	numbers, err := wikt.GetSectionNumbers(title)
+	if err != nil {
+		return nil, err
+	}
+
+	var word Word
+	for _, s := range parseText(text, numbers) {
+		if s.SubSections == nil {
+			continue
+		}
+
+		var meanings Meanings
+		foreign := s.Header != wikt.Russian
+		if s.SubSections[0].Level == wikt.L2 {
+			for _, s2 := range s.SubSections {
+				ms, err := parseMeanings(title, foreign, s2)
+				if err != nil {
+					return nil, err
+				}
+
+				for _, m := range ms {
+					m.Value = fmt.Sprintf("%s: %s", s2.Header, m.Value)
+					meanings = append(meanings, m)
+				}
+			}
+		} else {
+			var err error
+			meanings, err = parseMeanings(title, foreign, s)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		word = append(word, struct {
+			Language string
+			Meanings Meanings
+		}{Language: s.Header, Meanings: meanings})
+	}
+
+	return word, nil
+}
+
+func parseText(text string, numbers []int) Sections {
 	var sections Sections
+	stack := make(stack, 0)
 	for lvl := wikt.L1; lvl <= wikt.L4; lvl++ {
 		if sections = parseSection(text, lvl); len(sections) > 0 {
 			stack.push(sections)
@@ -23,10 +65,11 @@ func ParseText(text string) Sections {
 		}
 	}
 
+	var i int
 	for !stack.empty() {
 		section := stack.pop()
-		section.Number = n
-		n++
+		section.Number = numbers[i]
+		i++
 
 		for lvl := section.Level + 1; lvl <= wikt.L4; lvl++ {
 			if subs := parseSection(section.Text, lvl); len(subs) > 0 {
@@ -38,93 +81,6 @@ func ParseText(text string) Sections {
 	}
 
 	return sections
-}
-
-func ParseMeanings(semProps *Section) Meanings {
-	if semProps.SubSections != nil {
-		return parseI(semProps.SubSections)
-	} else {
-		return parseII(semProps.Text)
-	}
-}
-
-func ParseTranslations(meanings Meanings, foreign bool, html string) {
-	text, err := html2text.FromString(html)
-	if err != nil {
-		log.Print(err)
-		return
-	}
-
-	translations := make([]Translations, len(meanings))
-	if foreign {
-		parseTranslationsForeign(text, translations)
-	} else {
-		parseTranslations(text, translations)
-	}
-
-	for i := range meanings {
-		meanings[i].Translations = translations[i]
-	}
-}
-
-func NewWord(title string, sections Sections) Word {
-	var word Word
-	for _, s := range sections {
-		if s.SubSections == nil {
-			continue
-		}
-
-		foreign := s.Header != wikt.Russian
-		f := func(s *Section) Meanings {
-			semProps := s.SubSections.ByHeader(wikt.SemProps)
-			if semProps == nil {
-				return nil
-			}
-
-			var html string
-			var err error
-			if foreign {
-				meanings := semProps.SubSections.ByHeader(wikt.Meanings)
-				if meanings != nil {
-					html, err = wikt.GetSectionHTML(title, meanings.Number)
-					if err != nil {
-						panic(err)
-					}
-				}
-			} else {
-				translations := s.SubSections.ByHeader(wikt.Translations)
-				if translations != nil {
-					html, err = wikt.GetSectionHTML(title, translations.Number)
-					if err != nil {
-						panic(err)
-					}
-				}
-			}
-
-			meanings := ParseMeanings(semProps)
-			ParseTranslations(meanings, foreign, html)
-
-			return meanings
-		}
-
-		var meanings Meanings
-		if s.SubSections[0].Level == wikt.L2 {
-			for _, s2 := range s.SubSections {
-				for _, m := range f(s2) {
-					m.Value = fmt.Sprintf("%s: %s", s2.Header, m.Value)
-					meanings = append(meanings, m)
-				}
-			}
-		} else {
-			meanings = f(s)
-		}
-		word = append(word, struct {
-			Language string
-			Meanings Meanings
-		}{Language: s.Header, Meanings: meanings})
-	}
-
-	return word
 }
 
 func parseSection(text string, lvl wikt.Level) Sections {
@@ -139,46 +95,83 @@ func parseSection(text string, lvl wikt.Level) Sections {
 	return sections
 }
 
-func parseI(sections Sections) Meanings {
-	section := sections.ByHeader(wikt.Meanings)
-	if section == nil {
+func parseMeanings(title string, foreign bool, section *Section) (Meanings, error) {
+	var meanings Meanings
+	semProps := section.SubSections.ByHeader(wikt.SemProps)
+	if semProps == nil {
+		return meanings, nil
+	}
+
+	if semProps.SubSections != nil {
+		if len(semProps.SubSections) > 1 && semProps.SubSections[1].Number == 0 {
+			var err error
+			meanings, err = parseType3(title, semProps.SubSections[0])
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			meanings = parseType1(semProps.SubSections)
+		}
+	} else {
+		meanings = parseType2(semProps.Text)
+	}
+
+	if foreign {
+		if mSection := semProps.SubSections.ByHeader(wikt.Meanings); mSection != nil {
+			if err := parseTranslationsForeign(title, mSection.Number, meanings); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		if tSection := section.SubSections.ByHeader(wikt.Translations); tSection != nil {
+			if err := parseTranslationsRu(title, tSection.Number, meanings); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return meanings, nil
+}
+
+func parseType1(sections Sections) Meanings {
+	mSection := sections.ByHeader(wikt.Meanings)
+	if mSection == nil {
 		return nil
 	}
-	values, examples := parseMeanings(section.Text)
 
+	values, examples := parseMeaningsSection(mSection.Text)
 	l := len(values)
 	synonyms, antonyms, hyperonyms, hyponyms := make([][]string, l), make([][]string, l), make([][]string, l), make([][]string, l)
 
-	if section = sections.ByHeader(wikt.Synonyms); section != nil {
-		parseRelations(section.Text, synonyms)
+	if sSection := sections.ByHeader(wikt.Synonyms); sSection != nil {
+		parseRelationsSection(sSection.Text, synonyms)
 	}
-	if section := sections.ByHeader(wikt.Antonyms); section != nil {
-		parseRelations(section.Text, antonyms)
+	if aSection := sections.ByHeader(wikt.Antonyms); aSection != nil {
+		parseRelationsSection(aSection.Text, antonyms)
 	}
-	if section := sections.ByHeader(wikt.Hyperonyms); section != nil {
-		parseRelations(section.Text, hyperonyms)
+	if hyperSection := sections.ByHeader(wikt.Hyperonyms); hyperSection != nil {
+		parseRelationsSection(hyperSection.Text, hyperonyms)
 	}
-	if section := sections.ByHeader(wikt.Hyponyms); section != nil {
-		parseRelations(section.Text, hyponyms)
+	if hypoSection := sections.ByHeader(wikt.Hyponyms); hypoSection != nil {
+		parseRelationsSection(hypoSection.Text, hyponyms)
 	}
 
 	var meanings Meanings
 	for i, value := range values {
 		meanings = append(meanings, &Meaning{
-			Value:        value,
-			Examples:     examples[i],
-			Synonyms:     synonyms[i],
-			Antonyms:     antonyms[i],
-			Hyperonyms:   hyperonyms[i],
-			Hyponyms:     hyponyms[i],
-			Translations: nil,
+			Value:      value,
+			Examples:   examples[i],
+			Synonyms:   synonyms[i],
+			Antonyms:   antonyms[i],
+			Hyperonyms: hyperonyms[i],
+			Hyponyms:   hyponyms[i],
 		})
 	}
 
 	return meanings
 }
 
-func parseII(text string) Meanings {
+func parseType2(text string) Meanings {
 	var meanings Meanings
 	for _, line := range strings.Split(trim(text), "\n") {
 		split := strings.Split(line, " § ")
@@ -222,23 +215,77 @@ func parseII(text string) Meanings {
 	return meanings
 }
 
-func parseMeanings(text string) ([]string, [][]string) {
+func parseType3(title string, mSection *Section) (Meanings, error) {
+	wikitext, err := wikt.GetWikitext(title, mSection.Number)
+	if err != nil {
+		return nil, err
+	}
+
+	values, examples := parseMeaningsSection(mSection.Text)
+	l := len(values)
+	synonyms, antonyms, hyperonyms, hyponyms := make([][]string, l), make([][]string, l), make([][]string, l), make([][]string, l)
+
+	for i, match := range wikt.TemplatesRE[wikt.Semantics].FindAllStringSubmatch(wikitext, -1) {
+		match[1] = wikt.TemplatesRE[wikt.Brackets].ReplaceAllString(match[1], "")
+		for _, eq := range strings.Split(match[1], "|") {
+			var values []string
+			split := strings.Split(eq, "=")
+			for _, v := range strings.FieldsFunc(split[1], func(r rune) bool {
+				return r == ',' || r == ';'
+			}) {
+				v = trim(v)
+				v = strings.Replace(v, "[[", "", -1)
+				v = strings.Replace(v, "]]", "", -1)
+				if !strings.Contains("-?—", v) {
+					values = append(values, v)
+				}
+			}
+
+			switch split[0] {
+			case "синонимы":
+				synonyms[i] = values
+			case "антонимы":
+				antonyms[i] = values
+			case "гиперонимы":
+				hyperonyms[i] = values
+			case "гипонимы":
+				hyponyms[i] = values
+			}
+		}
+	}
+
+	var meanings Meanings
+	for i, value := range values {
+		meanings = append(meanings, &Meaning{
+			Value:      value,
+			Examples:   examples[i],
+			Synonyms:   synonyms[i],
+			Antonyms:   antonyms[i],
+			Hyperonyms: hyperonyms[i],
+			Hyponyms:   hyponyms[i],
+		})
+	}
+
+	return meanings, nil
+}
+
+func parseMeaningsSection(text string) ([]string, [][]string) {
 	var meanings []string
 	var examples [][]string
 	for _, line := range strings.Split(trim(text), "\n") {
-		if line == "" || line[0] == '(' || strings.Contains(line, wikt.Proto) {
+		if line == "" || strings.Contains(line, wikt.Proto) {
 			continue
 		}
 
 		split := strings.Split(line, wikt.ExampleSep)
 		meanings = append(meanings, split[0])
 		examples = append(examples, make([]string, 0))
-		i := len(examples) - 1
+		last := len(examples) - 1
 		if len(split) > 1 {
 			for _, example := range split[1:] {
 				example = trim(example)
 				if !strings.Contains(wikt.MissingExample, example) {
-					examples[i] = append(examples[i], example)
+					examples[last] = append(examples[last], example)
 				}
 			}
 		}
@@ -247,7 +294,105 @@ func parseMeanings(text string) ([]string, [][]string) {
 	return meanings, examples
 }
 
-func parseRelations(text string, relations [][]string) {
+func parseTranslationsRu(title string, number int, meanings Meanings) error {
+	wikitext, err := wikt.GetWikitext(title, number)
+	if err != nil {
+		return err
+	}
+
+	for wikt.TemplatesRE[wikt.Brackets].MatchString(wikitext) {
+		wikitext = wikt.TemplatesRE[wikt.Brackets].ReplaceAllString(wikitext, "")
+	}
+	for wikt.TemplatesRE[wikt.HTMLcomment].MatchString(wikitext) {
+		wikitext = wikt.TemplatesRE[wikt.HTMLcomment].ReplaceAllString(wikitext, "")
+	}
+
+	for i, block := range wikt.TemplatesRE[wikt.TranslationsRU].Split(wikitext, -1)[1:] {
+		if i >= len(meanings) {
+			return nil
+		}
+
+		for wikt.TemplatesRE[wikt.Template].MatchString(block) {
+			block = wikt.TemplatesRE[wikt.Template].ReplaceAllString(block, "")
+		}
+
+		for _, line := range strings.Split(block, "\n") {
+			if line == "" || line[0] != '|' {
+				continue
+			}
+
+			split := strings.Split(line[1:], "=")
+			lang, ok := languages[split[0]]
+			if !ok {
+				continue
+			}
+
+			var values []string
+			for _, v := range strings.FieldsFunc(split[1], func(r rune) bool {
+				return r == ',' || r == ';'
+			}) {
+				matches := wikt.TemplatesRE[wikt.Link].FindAllStringSubmatch(v, -1)
+				if len(matches) == 1 {
+					values = append(values, matches[0][1])
+				}
+			}
+
+			if len(values) > 0 {
+				meanings[i].Translations = append(meanings[i].Translations, &Translation{
+					Language: lang,
+					Values:   values,
+				})
+			}
+		}
+	}
+
+	return nil
+}
+
+func parseTranslationsForeign(title string, number int, meanings Meanings) error {
+	wikitext, err := wikt.GetWikitext(title, number)
+	if err != nil {
+		return err
+	}
+
+	for wikt.TemplatesRE[wikt.Brackets].MatchString(wikitext) {
+		wikitext = wikt.TemplatesRE[wikt.Brackets].ReplaceAllString(wikitext, "")
+	}
+	for wikt.TemplatesRE[wikt.HTMLcomment].MatchString(wikitext) {
+		wikitext = wikt.TemplatesRE[wikt.HTMLcomment].ReplaceAllString(wikitext, "")
+	}
+
+	for i, match := range wikt.TemplatesRE[wikt.Meaning].FindAllStringSubmatch(wikitext, -1) {
+		if i >= len(meanings) {
+			return nil
+		}
+
+		for wikt.TemplatesRE[wikt.Template].MatchString(match[1]) {
+			match[1] = wikt.TemplatesRE[wikt.Template].ReplaceAllString(match[1], "")
+		}
+
+		var values []string
+		for _, v := range strings.FieldsFunc(match[1], func(r rune) bool {
+			return r == ',' || r == ';'
+		}) {
+			matches := wikt.TemplatesRE[wikt.Link].FindAllStringSubmatch(v, -1)
+			if len(matches) == 1 {
+				values = append(values, matches[0][1])
+			}
+		}
+
+		if len(values) > 0 {
+			meanings[i].Translations = append(meanings[i].Translations, &Translation{
+				Language: wikt.Russian,
+				Values:   values,
+			})
+		}
+	}
+
+	return nil
+}
+
+func parseRelationsSection(text string, relations [][]string) {
 	lines := strings.Split(trim(text), "\n")
 	for i := 0; i < len(relations) && i < len(lines); i++ {
 		for _, word := range strings.FieldsFunc(lines[i], func(r rune) bool {
@@ -261,87 +406,6 @@ func parseRelations(text string, relations [][]string) {
 	}
 }
 
-func parseTranslations(text string, ts []Translations) {
-	i := -1
-	scanner := bufio.NewScanner(strings.NewReader(text))
-
-	// Skip 'Перевод' and '-------'
-	scanner.Scan()
-	scanner.Scan()
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		switch {
-		case line == "":
-			continue
-		case strings.HasPrefix(line, "* "):
-			matches := wikt.TemplatesRE[wikt.LinkedWord].FindAllStringSubmatch(line, -1)
-			if len(matches) == 0 {
-				continue
-			}
-
-			var values []string
-			for _, value := range matches[1:] {
-				values = append(values, value[1])
-			}
-
-			if len(values) > 0 {
-				ts[i] = append(ts[i], &Translation{Language: matches[0][1], Values: values})
-			}
-		default:
-			i++
-			if i >= len(ts) {
-				return
-			}
-		}
-	}
-}
-
-func parseTranslationsForeign(text string, ts []Translations) {
-	idx := strings.Index(text, wikt.Meanings+" * ")
-	if idx == -1 {
-		return
-	}
-
-	i := 0
-	text = strings.TrimPrefix(text[idx:], wikt.Meanings+" ")
-	scanner := bufio.NewScanner(strings.NewReader(text))
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, "* ") {
-			return
-		}
-
-		// Cut off examples
-		if i := strings.Index(line, wikt.ExampleSep); i != -1 {
-			line = line[:i]
-		}
-
-		var values []string
-		for _, field := range strings.FieldsFunc(line, func(r rune) bool {
-			return r == ',' || r == ';'
-		}) {
-			field = strings.Replace(field, "сленг", "", -1)
-			field = strings.Replace(field, "табу", "", -1)
-
-			matches := wikt.TemplatesRE[wikt.LinkedWordRu].FindAllStringSubmatch(field, -1)
-			if len(matches) != 1 {
-				continue
-			}
-
-			values = append(values, matches[0][1])
-		}
-
-		if len(values) > 0 {
-			ts[i] = append(ts[i], &Translation{Language: wikt.Russian, Values: values})
-		}
-
-		i++
-	}
-}
-
-func trim(text string) string {
-	return strings.TrimSpace(text)
+func trim(s string) string {
+	return strings.TrimSpace(s)
 }

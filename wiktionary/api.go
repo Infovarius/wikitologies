@@ -9,7 +9,18 @@ import (
 	"strconv"
 )
 
-type queryResponse struct {
+type numbersResponse struct {
+	Parse struct {
+		Sections []struct {
+			Line   string
+			Level  string
+			Number string
+			Index  string
+		}
+	}
+}
+
+type textResponse struct {
 	Query struct {
 		Pages []struct {
 			Title   string
@@ -19,16 +30,49 @@ type queryResponse struct {
 	}
 }
 
-type parseResponse struct {
+type wikitextResponse struct {
 	Parse struct {
-		Title string
-		Text  string
+		Wikitext string
 	}
 }
 
 const apiUrl = "https://ru.wiktionary.org/w/api.php?"
 
 var ErrMissing = errors.New("page is missing")
+
+func GetSectionNumbers(title string) ([]int, error) {
+	params := url.Values{}
+	params.Add("action", "parse")
+	params.Add("prop", "sections")
+	params.Add("redirects", "1")
+	params.Add("format", "json")
+	params.Add("formatversion", "2")
+	params.Add("page", title)
+	params.Add("disablelimitreport", "1")
+	params.Add("disableeditsection", "1")
+	params.Add("disablestylededuplication", "1")
+
+	bytes, err := get(apiUrl + params.Encode())
+	if err != nil {
+		return nil, err
+	}
+
+	var data numbersResponse
+	err = json.Unmarshal(bytes, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	l := len(data.Parse.Sections)
+	numbers := make([]int, l)
+	for i, s := range data.Parse.Sections {
+		if s.Index != "" {
+			numbers[i], _ = strconv.Atoi(s.Index)
+		}
+	}
+
+	return numbers, nil
+}
 
 func GetText(title string) (string, error) {
 	params := url.Values{}
@@ -45,7 +89,7 @@ func GetText(title string) (string, error) {
 		return "", err
 	}
 
-	var data queryResponse
+	var data textResponse
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
 		return "", err
@@ -58,10 +102,10 @@ func GetText(title string) (string, error) {
 	return data.Query.Pages[0].Extract, nil
 }
 
-func GetSectionHTML(title string, number int) (string, error) {
+func GetWikitext(title string, number int) (string, error) {
 	params := url.Values{}
 	params.Add("action", "parse")
-	params.Add("prop", "text")
+	params.Add("prop", "wikitext")
 	params.Add("redirects", "1")
 	params.Add("format", "json")
 	params.Add("formatversion", "2")
@@ -76,13 +120,13 @@ func GetSectionHTML(title string, number int) (string, error) {
 		return "", err
 	}
 
-	var data parseResponse
+	var data wikitextResponse
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
 		return "", err
 	}
 
-	return data.Parse.Text, nil
+	return data.Parse.Wikitext, nil
 }
 
 func get(url string) ([]byte, error) {

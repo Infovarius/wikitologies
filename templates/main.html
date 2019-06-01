@@ -10,7 +10,7 @@
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
     <style>
-        html, body, form, .container, .form-row {
+        html, body {
             height: 100%
         }
     </style>
@@ -50,33 +50,35 @@
 </head>
 
 <body>
-<nav class="navbar navbar-dark bg-dark">
-    <a class="navbar-brand" href="/">HOME</a>
-</nav>
+<div class="container h-100">
+    <div class="row h-100 justify-content-center align-items-center">
+        <div class="col text-center">
+            <h1 class="display-4">AWESOME HEADER</h1>
 
-<div class="container">
-    <form id="form" method="post">
-        <div class="form-row align-items-center justify-content-center">
-            <div class="col-auto">
-                <input id="title" type="text" class="form-control" placeholder="Слово">
-            </div>
+            <form id="form" method="post">
+                <div class="form-row justify-content-center align-items-center">
+                    <div class="col-auto">
+                        <input id="title" type="text" class="form-control" placeholder="Слово">
+                    </div>
 
-            <div class="col-auto">
-                <input id="lang" type="text" class="form-control" placeholder="Язык">
-            </div>
+                    <div class="col-auto">
+                        <input id="lang" type="text" class="form-control" placeholder="Язык">
+                    </div>
 
-            <div class="col-auto">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="strict">
-                    <label class="form-check-label" for="strict">"Строгий" режим</label>
+                    <div class="col-auto">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="strict">
+                            <label class="form-check-label" for="strict">"Строгий" режим</label>
+                        </div>
+                    </div>
+
+                    <div class="col-auto">
+                        <button id="submit" type="submit" class="btn btn-dark" disabled>Построить</button>
+                    </div>
                 </div>
-            </div>
-
-            <div class="col-auto">
-                <button id="submit" type="submit" class="btn btn-dark" disabled>Построить</button>
-            </div>
+            </form>
         </div>
-    </form>
+    </div>
 </div>
 </body>
 </html>

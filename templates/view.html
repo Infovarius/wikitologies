@@ -17,13 +17,21 @@
 
     <script>
         function init() {
+            document.getElementById("header").textContent = document.getElementById("graph0").children[0].textContent;
+
+            const path = window.location.pathname + window.location.search;
+            document.getElementById("png").href = "/save/png" + path;
+            document.getElementById("svg").href = "/save/svg" + path;
+            document.getElementById("dot").href = "/save/dot" + path;
+
             const nodes = document.getElementsByClassName("node");
             for (let i = 0; i < nodes.length; i++) {
                 nodes[i].addEventListener("click", function () {
                     document.getElementById("node").textContent = this.children[0].textContent;
                     document.getElementById("text").textContent = this.children[1].children[0].getAttribute("xlink:title");
-                    document.getElementById("submit").removeAttribute("disabled");
-                    document.getElementById("form").setAttribute("action", "/edit/" + this.children[0].textContent);
+                    document.getElementById("form").action = "/edit/" + this.children[0].textContent;
+                    const color = this.children[1].children[0].children[0].getAttribute("stroke");
+                    document.getElementById("submit").disabled = color === "black";
                 })
             }
         }
@@ -34,13 +42,30 @@
 
 <body>
 <nav class="navbar navbar-dark bg-dark">
-    <a class="navbar-brand" href="/">HOME</a>
+    <a class="navbar-brand" href="/">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Wiktfavicon_en.svg/1024px-Wiktfavicon_en.svg.png"
+             width="40" height="40" alt="">
+        <span id="header"></span>
+    </a>
+
+    <div class="dropdown dropleft">
+        <button id="save" class="btn btn-success dropdown-toggle" type="button" data-toggle="dropdown"
+                aria-haspopup="true"
+                aria-expanded="false">
+            Сохранить
+        </button>
+        <div class="dropdown-menu" aria-labelledby="save">
+            <a id="png" class="dropdown-item">.png</a>
+            <a id="svg" class="dropdown-item">.svg</a>
+            <a id="dot" class="dropdown-item">.dot</a>
+        </div>
+    </div>
 </nav>
 
-<div class="container">
+<div class="container mt-2">
     <div class="row">
         <div id="graph" class="col">
-            {{svg .Title .Lang .Strict .Params}}
+            {{draw .Title .Lang .Strict .Params}}
         </div>
 
         <div id="meaning" class="col">
@@ -60,5 +85,15 @@
         </div>
     </div>
 </div>
+
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+        crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+        crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+        crossorigin="anonymous"></script>
 </body>
 </html>
