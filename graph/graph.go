@@ -78,8 +78,12 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 			return nil, err
 		}
 
-		idx := -1
 		meanings := word.ByLanguage(lang)
+		if meanings == nil {
+			continue
+		}
+
+		idx := -1
 		if strict {
 		loop:
 			for i, m := range meanings {
