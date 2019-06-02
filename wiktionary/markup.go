@@ -22,6 +22,7 @@ var HeadersRE = map[Level]*regexp.Regexp{
 
 const (
 	T2Content      = "Type 2 synonyms, antonyms, etc."
+	T3Content      = "Type 3 synonyms, antonyms, etc."
 	Brackets       = "Round brackets"
 	Link           = "Wikitext link"
 	Template       = "Wikitext any template"
@@ -33,10 +34,11 @@ const (
 
 var TemplatesRE = map[string]*regexp.Regexp{
 	T2Content:      regexp.MustCompile("синонимы:|конверсивы:|антонимы:|гиперонимы:|гипонимы:|согипонимы:|холонимы:|меронимы:|управление:|время:|категории:|якорь:|язык"),
+	T3Content:      regexp.MustCompile(`\|синонимы=|\|частичные синонимы=|\|антонимы=|\|частичные антонимы=|\|гиперонимы=|\|гипонимы=`),
 	Brackets:       regexp.MustCompile(`\([^(]*?\)`),
 	Link:           regexp.MustCompile(`\[\[([^|[]*?)]]`),
 	Template:       regexp.MustCompile("{{[^{]*?}}"),
-	Semantics:      regexp.MustCompile(`{{семантика\|([^{]*?)}}`),
+	Semantics:      regexp.MustCompile(`{{семантика([^{]*?)}}`),
 	Meaning:        regexp.MustCompile(`#(.*?)(\n|$)`),
 	HTMLcomment:    regexp.MustCompile(`<!--.*?-->`),
 	TranslationsRU: regexp.MustCompile(`{{перев-блок.*?\n`),

@@ -177,7 +177,7 @@ func parseType2(text string) Meanings {
 		split := strings.Split(line, " § ")
 		meaning := &Meaning{Value: split[0]}
 		if len(split) > 1 {
-			headers := wikt.TemplatesRE[wikt.T2Content].FindAllStringSubmatch(split[1], -1)
+			headers := wikt.TemplatesRE[wikt.T2Content].FindAllString(split[1], -1)
 			values := wikt.TemplatesRE[wikt.T2Content].Split(split[1], -1)
 
 			for _, example := range strings.Split(values[0], wikt.ExampleSep) {
@@ -188,7 +188,7 @@ func parseType2(text string) Meanings {
 			}
 
 			for i := range headers {
-				switch headers[i][0] {
+				switch headers[i] {
 				case "синонимы:":
 					for _, word := range strings.Split(values[i+1], ",") {
 						meaning.Synonyms = append(meaning.Synonyms, trim(word))
@@ -225,14 +225,26 @@ func parseType3(title string, mSection *Section) (Meanings, error) {
 	l := len(values)
 	synonyms, antonyms, hyperonyms, hyponyms := make([][]string, l), make([][]string, l), make([][]string, l), make([][]string, l)
 
+	for wikt.TemplatesRE[wikt.Brackets].MatchString(wikitext) {
+		wikitext = wikt.TemplatesRE[wikt.Brackets].ReplaceAllString(wikitext, "")
+	}
+
 	for i, match := range wikt.TemplatesRE[wikt.Semantics].FindAllStringSubmatch(wikitext, -1) {
-		match[1] = wikt.TemplatesRE[wikt.Brackets].ReplaceAllString(match[1], "")
-		for _, eq := range strings.Split(match[1], "|") {
+		for wikt.TemplatesRE[wikt.Template].MatchString(match[1]) {
+			match[1] = wikt.TemplatesRE[wikt.Template].ReplaceAllString(match[1], "")
+		}
+
+		headers := wikt.TemplatesRE[wikt.T3Content].FindAllString(match[1], -1)
+		data := wikt.TemplatesRE[wikt.T3Content].Split(match[1], -1)
+
+		for j := range headers {
 			var values []string
-			split := strings.Split(eq, "=")
-			for _, v := range strings.FieldsFunc(split[1], func(r rune) bool {
+			for _, v := range strings.FieldsFunc(data[j+1], func(r rune) bool {
 				return r == ',' || r == ';'
 			}) {
+				if idx := strings.Index(v, "|"); idx != -1 {
+					continue
+				}
 				v = trim(v)
 				v = strings.Replace(v, "[[", "", -1)
 				v = strings.Replace(v, "]]", "", -1)
@@ -241,14 +253,14 @@ func parseType3(title string, mSection *Section) (Meanings, error) {
 				}
 			}
 
-			switch split[0] {
-			case "синонимы":
+			switch headers[j] {
+			case "|синонимы=":
 				synonyms[i] = values
-			case "антонимы":
+			case "|антонимы=":
 				antonyms[i] = values
-			case "гиперонимы":
+			case "|гиперонимы=":
 				hyperonyms[i] = values
-			case "гипонимы":
+			case "|гипонимы=":
 				hyponyms[i] = values
 			}
 		}
