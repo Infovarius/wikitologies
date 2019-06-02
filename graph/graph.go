@@ -45,7 +45,9 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 	g := dot.NewGraph()
 	g.Directed = true
 	g.Name = glue(fmt.Sprintf("%s (%s)", title, lang))
-	attrs := map[string]string{"tooltip": glue(meanings[idx].Value)}
+	attrs := map[string]string{
+		"tooltip": glue(meanings[idx].Value),
+	}
 	if l > 1 {
 		attrs["color"] = "red"
 	}
@@ -54,7 +56,7 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 	stack := stack{}
 	stack.push(title, meanings[idx].Hyperonyms)
 	if lang != wikt.Russian {
-		hs, rus, err := hypersRU(title, lang, meanings[idx], strict)
+		hs, rus, err := hypersRU(title, lang, meanings[idx], strict, meanings[idx].Hyperonyms)
 		if err != nil {
 			return nil, err
 		}
@@ -69,9 +71,9 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		if t == h {
 			continue
 		}
-
 		log.Println(t, h, ru)
-		if _, ok := g.Nodes.Lookup[glue(h)]; ok && !strict {
+
+		if _, ok := g.Nodes.Lookup[glue(h)]; ok && !strict && ru == "" {
 			if _, ok := g.Edges.SrcToDsts[glue(t)][glue(h)]; !ok {
 				_ = g.AddEdge(glue(t), glue(h), true, nil)
 			}
@@ -93,42 +95,62 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		}
 
 		idx := -1
-		if strict {
-		loop:
+		if ru != "" {
 			for i, m := range meanings {
-				if ru != "" {
-					if contains(m.Translations.ByLanguage(wikt.Russian), ru) {
-						idx = i
-						break loop
-					}
-				} else {
-					if contains(m.Hyponyms, t) {
-						idx = i
-						break loop
-					}
+				if contains(m.Translations.ByLanguage(wikt.Russian), ru) {
+					idx = i
+					break
 				}
 			}
 			if idx == -1 {
 				continue
 			}
-			if node, ok := g.Nodes.Lookup[glue(h)]; ok && node.Attrs["tooltip"] == glue(meanings[idx].Value) {
-				_ = g.AddEdge(glue(t), glue(h), true, nil)
-				continue
-			}
 		} else {
-			idx = index(h, lang, meanings, params)
-			if idx >= len(meanings) {
-				return nil, errors.New(fmt.Sprintf("ошибка: некорректные предустановки/параметры запроса для слова %s: запрошено значение %d (всего доступно %d)", h, idx, l))
+			if strict {
+				for i, m := range meanings {
+					if contains(m.Hyponyms, t) {
+						idx = i
+						break
+					}
+				}
+				if idx == -1 {
+					continue
+				}
+			} else {
+				idx = index(h, lang, meanings, params)
+				if idx >= len(meanings) {
+					return nil, errors.New(fmt.Sprintf("ошибка: некорректные предустановки/параметры запроса для слова %s: запрошено значение %d (всего доступно %d)", h, idx, l))
+				}
 			}
 		}
 
-		attrs := map[string]string{"tooltip": glue(meanings[idx].Value)}
-		if !strict && len(meanings) > 1 {
+		if node, ok := g.Nodes.Lookup[glue(h)]; ok {
+			if node.Attrs["tooltip"] == glue(meanings[idx].Value) {
+				if _, ok := g.Edges.SrcToDsts[glue(t)][glue(h)]; !ok {
+					_ = g.AddEdge(glue(t), glue(h), true, nil)
+				}
+			} else {
+				// TODO
+				log.Println("!!!", h, idx)
+			}
+			continue
+		}
+
+		attrs := map[string]string{
+			"tooltip": glue(meanings[idx].Value),
+		}
+		if len(meanings) > 1 {
 			attrs["color"] = "red"
 		}
 		if ru != "" {
 			attrs["xlabel"] = glue("(" + ru + ")")
-			hs, rus, err := hypersRU(h, lang, meanings[idx], strict)
+		}
+		_ = g.AddNode(g.Name, glue(h), attrs)
+		_ = g.AddEdge(glue(t), glue(h), true, nil)
+
+		stack.push(h, meanings[idx].Hyperonyms)
+		if lang != wikt.Russian {
+			hs, rus, err := hypersRU(h, lang, meanings[idx], strict, meanings[idx].Hyperonyms)
 			if err != nil {
 				return nil, err
 			}
@@ -137,9 +159,6 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 				stack.push2(h, hs, rus)
 			}
 		}
-		stack.push(h, meanings[idx].Hyperonyms)
-		_ = g.AddNode(g.Name, glue(h), attrs)
-		_ = g.AddEdge(glue(t), glue(h), true, nil)
 	}
 
 	return g, nil
@@ -161,7 +180,7 @@ func index(title, lang string, meanings parser.Meanings, params map[string]int) 
 	return 0
 }
 
-func hypersRU(title, lang string, meaning *parser.Meaning, strict bool) ([]string, []string, error) {
+func hypersRU(title, lang string, meaning *parser.Meaning, strict bool, existing []string) ([]string, []string, error) {
 	var hs, rus []string
 	for _, v := range meaning.Translations.ByLanguage(wikt.Russian) {
 		w, err := parser.Parse(v)
@@ -173,38 +192,45 @@ func hypersRU(title, lang string, meaning *parser.Meaning, strict bool) ([]strin
 			return nil, nil, err
 		}
 
-		for _, mru := range w.ByLanguage(wikt.Russian) {
+		idx := -1
+		for i, mru := range w.ByLanguage(wikt.Russian) {
 			if contains(mru.Translations.ByLanguage(lang), title) {
-				for _, hru := range mru.Hyperonyms {
-					wh, err := parser.Parse(hru)
-					if err != nil {
-						if err == wikt.ErrMissing {
-							log.Println(hru, err)
-							continue
-						}
-						return nil, nil, err
-					}
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			continue
+		}
 
-					if strict {
-						for _, mhru := range wh.ByLanguage(wikt.Russian) {
-							if contains(mhru.Hyponyms, v) {
-								for _, v := range mhru.Translations.ByLanguage(lang) {
-									if !contains(hs, v) {
-										hs = append(hs, v)
-										rus = append(rus, hru)
-									}
-								}
+		for _, hru := range w.ByLanguage(wikt.Russian)[idx].Hyperonyms {
+			wh, err := parser.Parse(hru)
+			if err != nil {
+				if err == wikt.ErrMissing {
+					log.Println(hru, err)
+					continue
+				}
+				return nil, nil, err
+			}
+
+			if strict {
+				for _, mhru := range wh.ByLanguage(wikt.Russian) {
+					if contains(mhru.Hyponyms, v) {
+						for _, v := range mhru.Translations.ByLanguage(lang) {
+							if !contains(existing, v) && !contains(hs, v) {
+								hs = append(hs, v)
+								rus = append(rus, hru)
 							}
 						}
-					} else {
-						mhrus := wh.ByLanguage(wikt.Russian)
-						if len(mhrus) > 0 {
-							for _, v := range mhrus[0].Translations.ByLanguage(lang) {
-								if !contains(hs, v) {
-									hs = append(hs, v)
-									rus = append(rus, hru)
-								}
-							}
+					}
+				}
+			} else {
+				mhrus := wh.ByLanguage(wikt.Russian)
+				if len(mhrus) > 0 {
+					for _, v := range mhrus[0].Translations.ByLanguage(lang) {
+						if !contains(existing, v) && !contains(hs, v) {
+							hs = append(hs, v)
+							rus = append(rus, hru)
 						}
 					}
 				}

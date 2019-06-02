@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,6 +29,10 @@ var (
 	editTemplate *template.Template
 )
 
+const (
+	defaultPort = "8080"
+)
+
 func main() {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -45,7 +50,12 @@ func main() {
 	r.HandleFunc("/{title}", viewHandler)
 	r.HandleFunc("/edit/{title}", editHandler)
 	r.HandleFunc("/save/{format}/{title}", saveHandler)
-	if err := http.ListenAndServe(":"+os.Getenv("PORT"), recovery(r)); err != nil {
+	port, ok := os.LookupEnv("PORT")
+	if !ok {
+		port = defaultPort
+	}
+	log.Println("listening on", port)
+	if err := http.ListenAndServe(":"+port, recovery(r)); err != nil {
 		panic(err)
 	}
 }
