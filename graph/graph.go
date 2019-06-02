@@ -19,6 +19,7 @@ var presets = map[string]int{
 }
 
 func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, error) {
+	log.Println("building", title)
 	word, err := parser.Parse(title)
 	if err != nil {
 		return nil, err
@@ -57,11 +58,19 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		if err != nil {
 			return nil, err
 		}
-		stack.push2(title, hs, rus)
+		if len(hs) > 0 {
+			log.Println("potential for", title, hs)
+			stack.push2(title, hs, rus)
+		}
 	}
 
 	for !stack.empty() {
 		t, h, ru := stack.pop()
+		if t == h {
+			continue
+		}
+
+		log.Println(t, h, ru)
 		if _, ok := g.Nodes.Lookup[glue(h)]; ok && !strict {
 			if _, ok := g.Edges.SrcToDsts[glue(t)][glue(h)]; !ok {
 				_ = g.AddEdge(glue(t), glue(h), true, nil)
@@ -119,11 +128,14 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		}
 		if ru != "" {
 			attrs["xlabel"] = glue("(" + ru + ")")
-			hs, rus, err := hypersRU(title, lang, meanings[idx], strict)
+			hs, rus, err := hypersRU(h, lang, meanings[idx], strict)
 			if err != nil {
 				return nil, err
 			}
-			stack.push2(title, hs, rus)
+			if len(hs) > 0 {
+				log.Println("potential for", h, hs)
+				stack.push2(h, hs, rus)
+			}
 		}
 		stack.push(h, meanings[idx].Hyperonyms)
 		_ = g.AddNode(g.Name, glue(h), attrs)
