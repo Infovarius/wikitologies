@@ -23,8 +23,8 @@ const (
 	SVG = "svg"
 	DOT = "dot"
 
-	defaultPort  = ":8080"
-	defaultRedis = ":6379"
+	defaultPort  = "8080"
+	defaultRedis = "6379"
 )
 
 var (
@@ -60,7 +60,7 @@ func main() {
 		port = defaultPort
 	}
 	log.Println("listening on", port)
-	err = http.ListenAndServe(""+port, recovery(r))
+	err = http.ListenAndServe(":"+port, recovery(r))
 	panicIf(err)
 }
 
@@ -73,7 +73,7 @@ func initRedis() {
 			if ok {
 				c, err = redis.DialURL(url)
 			} else {
-				c, err = redis.Dial("tcp", defaultRedis)
+				c, err = redis.Dial("tcp", ":"+defaultRedis)
 			}
 			panicIf(err)
 			return c, nil
