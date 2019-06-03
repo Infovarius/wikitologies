@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/mux"
 
 	"github.com/stillpiercer/wikitologies/graph"
@@ -21,19 +22,23 @@ import (
 const (
 	SVG = "svg"
 	DOT = "dot"
+
+	defaultPort  = ":8080"
+	defaultRedis = ":6379"
 )
 
 var (
 	mainTemplate *template.Template
 	viewTemplate *template.Template
 	editTemplate *template.Template
-)
 
-const (
-	defaultPort = "8080"
+	pool *redis.Pool
 )
 
 func main() {
+	initRedis()
+	defer pool.Close()
+
 	wd, err := os.Getwd()
 	if err != nil {
 		panic(err)
@@ -55,8 +60,25 @@ func main() {
 		port = defaultPort
 	}
 	log.Println("listening on", port)
-	err = http.ListenAndServe(":"+port, recovery(r))
+	err = http.ListenAndServe(""+port, recovery(r))
 	panicIf(err)
+}
+
+func initRedis() {
+	pool = &redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			var c redis.Conn
+			var err error
+			url, ok := os.LookupEnv("REDIS_URL")
+			if ok {
+				c, err = redis.DialURL(url)
+			} else {
+				c, err = redis.Dial("tcp", defaultRedis)
+			}
+			panicIf(err)
+			return c, nil
+		},
+	}
 }
 
 func mainHandler(w http.ResponseWriter, _ *http.Request) {
@@ -88,7 +110,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 
 func editHandler(w http.ResponseWriter, r *http.Request) {
 	title, lang := parseTitleLang(r)
-	word, err := parser.Parse(title)
+	word, err := graph.GetWord(title, pool)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
@@ -165,7 +187,7 @@ func parseStrictParams(r *http.Request) (bool, map[string]int) {
 }
 
 func dot(title, lang string, strict bool, params map[string]int, format string) ([]byte, error) {
-	g, err := graph.Build(title, lang, strict, params)
+	g, err := graph.Build(title, lang, strict, params, pool)
 	if err != nil {
 		return nil, err
 	}

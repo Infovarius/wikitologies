@@ -1,12 +1,14 @@
 package graph
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"strings"
 
 	dot "github.com/awalterschulze/gographviz"
+	"github.com/gomodule/redigo/redis"
 
 	"github.com/stillpiercer/wikitologies/parser"
 	wikt "github.com/stillpiercer/wikitologies/wiktionary"
@@ -25,11 +27,9 @@ var presets = map[string]int{
 	"мир":        3,
 }
 
-func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, error) {
-	cache := make(map[string]parser.Word)
-	log.Printf("building %s...", title)
-
-	word, err := GetWord(title, cache)
+func Build(title, lang string, strict bool, params map[string]int, pool *redis.Pool) (*dot.Graph, error) {
+	log.Printf("=== building %s ===", title)
+	word, err := GetWord(title, pool)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		log.Printf("%s own: %s", name, meanings[idx].Hyperonyms)
 	}
 	if lang != wikt.Russian {
-		hs, rus, err := predict(title, lang, meanings[idx], strict, meanings[idx].Hyperonyms, cache)
+		hs, rus, err := predict(title, lang, meanings[idx], strict, meanings[idx].Hyperonyms, pool)
 		if err != nil {
 			return nil, err
 		}
@@ -90,7 +90,7 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		}
 		log.Printf("%s -> %s [%s]: checking...", t, h, kind)
 
-		word, err := GetWord(h, cache)
+		word, err := GetWord(h, pool)
 		if err != nil {
 			if err == wikt.ErrMissing {
 				log.Println(h, err)
@@ -173,7 +173,7 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 			log.Printf("%s own: %s", name, meanings[idx].Hyperonyms)
 		}
 		if lang != wikt.Russian {
-			hs, rus, err := predict(h, lang, meanings[idx], strict, meanings[idx].Hyperonyms, cache)
+			hs, rus, err := predict(h, lang, meanings[idx], strict, meanings[idx].Hyperonyms, pool)
 			if err != nil {
 				return nil, err
 			}
@@ -184,20 +184,42 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		}
 	}
 
+	log.Printf("=== done %s ===", title)
 	return g, nil
 }
 
-func GetWord(title string, cache map[string]parser.Word) (parser.Word, error) {
-	if word, ok := cache[title]; ok {
-		return word, nil
-	}
+func GetWord(title string, pool *redis.Pool) (parser.Word, error) {
+	const wordPrefix = "word:"
+	// TODO const datePrefix = "date:"
 
-	word, err := parser.Parse(title)
+	c := pool.Get()
+	defer c.Close()
+
+	s, err := redis.String(c.Do("GET", wordPrefix+title))
 	if err != nil {
+		if err == redis.ErrNil {
+			word, err := parser.Parse(title)
+			if err != nil {
+				return nil, err
+			}
+
+			data, err := json.Marshal(word)
+			if err != nil {
+				return nil, err
+			}
+
+			_, err = c.Do("SET", wordPrefix+title, data)
+			if err != nil {
+				return nil, err
+			}
+
+			return word, nil
+		}
 		return nil, err
 	}
 
-	cache[title] = word
+	word := parser.Word{}
+	err = json.Unmarshal([]byte(s), &word)
 
 	return word, nil
 }
@@ -218,10 +240,10 @@ func index(title, lang string, meanings parser.Meanings, params map[string]int) 
 	return 0
 }
 
-func predict(title, lang string, meaning *parser.Meaning, strict bool, existing []string, cache map[string]parser.Word) ([]string, []string, error) {
+func predict(title, lang string, meaning *parser.Meaning, strict bool, existing []string, pool *redis.Pool) ([]string, []string, error) {
 	var hs, rus []string
 	for _, tru := range meaning.Translations.ByLanguage(wikt.Russian) {
-		w, err := GetWord(tru, cache)
+		w, err := GetWord(tru, pool)
 		if err != nil {
 			if err == wikt.ErrMissing {
 				log.Println(tru, err)
@@ -242,7 +264,7 @@ func predict(title, lang string, meaning *parser.Meaning, strict bool, existing 
 		}
 
 		for _, hru := range w.ByLanguage(wikt.Russian)[idx].Hyperonyms {
-			wh, err := GetWord(hru, cache)
+			wh, err := GetWord(hru, pool)
 			if err != nil {
 				if err == wikt.ErrMissing {
 					log.Println(hru, err)
