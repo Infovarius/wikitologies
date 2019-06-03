@@ -29,9 +29,9 @@
                 nodes[i].addEventListener("click", function () {
                     document.getElementById("node").textContent = this.children[0].textContent;
                     document.getElementById("text").textContent = this.children[1].children[0].getAttribute("xlink:title");
-                    document.getElementById("form").action = "/edit/" + this.children[0].textContent;
+                    document.getElementById("form").action = "/edit/" + this.children[0].textContent.split(":")[0];
                     const color = this.children[1].children[0].children[0].getAttribute("stroke");
-                    document.getElementById("submit").disabled = color === "black";
+                    document.getElementById("submit").disabled = color !== "green";
                 })
             }
         }

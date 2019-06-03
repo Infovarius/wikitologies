@@ -12,6 +12,13 @@ import (
 	wikt "github.com/stillpiercer/wikitologies/wiktionary"
 )
 
+type kind string
+
+const (
+	own       kind = "own"
+	predicted kind = "predicted"
+)
+
 var presets = map[string]int{
 	"реальность": 1,
 	"организм":   1,
@@ -19,8 +26,10 @@ var presets = map[string]int{
 }
 
 func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, error) {
-	log.Println("building", title)
-	word, err := parser.Parse(title)
+	cache := make(map[string]parser.Word)
+	log.Printf("building %s...", title)
+
+	word, err := GetWord(title, cache)
 	if err != nil {
 		return nil, err
 	}
@@ -48,39 +57,40 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 	attrs := map[string]string{
 		"tooltip": glue(meanings[idx].Value),
 	}
+	name := title
 	if l > 1 {
-		attrs["color"] = "red"
+		attrs["color"] = "green"
+		name += fmt.Sprintf(":%d", idx)
 	}
-	_ = g.AddNode(g.Name, glue(title), attrs)
+	_ = g.AddNode(g.Name, glue(name), attrs)
 
 	stack := stack{}
-	stack.push(title, meanings[idx].Hyperonyms)
+	if len(meanings[idx].Hyperonyms) > 0 {
+		stack.push(name, meanings[idx].Hyperonyms)
+		log.Printf("%s own: %s", name, meanings[idx].Hyperonyms)
+	}
 	if lang != wikt.Russian {
-		hs, rus, err := hypersRU(title, lang, meanings[idx], strict, meanings[idx].Hyperonyms)
+		hs, rus, err := predict(title, lang, meanings[idx], strict, meanings[idx].Hyperonyms, cache)
 		if err != nil {
 			return nil, err
 		}
 		if len(hs) > 0 {
-			log.Println("potential for", title, hs)
-			stack.push2(title, hs, rus)
+			stack.push2(name, hs, rus)
+			log.Printf("%s predicted: %s %s", name, hs, rus)
 		}
 	}
 
 	for !stack.empty() {
 		t, h, ru := stack.pop()
-		if t == h {
-			continue
+		var kind kind
+		if ru == "" {
+			kind = own
+		} else {
+			kind = predicted
 		}
-		log.Println(t, h, ru)
+		log.Printf("%s -> %s [%s]: checking...", t, h, kind)
 
-		if _, ok := g.Nodes.Lookup[glue(h)]; ok && !strict && ru == "" {
-			if _, ok := g.Edges.SrcToDsts[glue(t)][glue(h)]; !ok {
-				_ = g.AddEdge(glue(t), glue(h), true, nil)
-			}
-			continue
-		}
-
-		word, err := parser.Parse(h)
+		word, err := GetWord(h, cache)
 		if err != nil {
 			if err == wikt.ErrMissing {
 				log.Println(h, err)
@@ -90,22 +100,14 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 		}
 
 		meanings := word.ByLanguage(lang)
-		if meanings == nil {
+		l := len(meanings)
+		if l == 0 {
 			continue
 		}
 
 		idx := -1
-		if ru != "" {
-			for i, m := range meanings {
-				if contains(m.Translations.ByLanguage(wikt.Russian), ru) {
-					idx = i
-					break
-				}
-			}
-			if idx == -1 {
-				continue
-			}
-		} else {
+		switch kind {
+		case own:
 			if strict {
 				for i, m := range meanings {
 					if contains(m.Hyponyms, t) {
@@ -114,54 +116,90 @@ func Build(title, lang string, strict bool, params map[string]int) (*dot.Graph, 
 					}
 				}
 				if idx == -1 {
+					log.Printf("%s -> %s [%s]: denied", t, h, kind)
 					continue
 				}
 			} else {
 				idx = index(h, lang, meanings, params)
-				if idx >= len(meanings) {
+				if idx >= l {
 					return nil, errors.New(fmt.Sprintf("ошибка: некорректные предустановки/параметры запроса для слова %s: запрошено значение %d (всего доступно %d)", h, idx, l))
 				}
 			}
+		case predicted:
+			for i, m := range meanings {
+				if contains(m.Translations.ByLanguage(wikt.Russian), ru) {
+					idx = i
+					break
+				}
+			}
+			if idx == -1 {
+				log.Printf("%s -> %s [%s]: denied", t, h, kind)
+				continue
+			}
 		}
 
-		if node, ok := g.Nodes.Lookup[glue(h)]; ok {
-			if node.Attrs["tooltip"] == glue(meanings[idx].Value) {
-				if _, ok := g.Edges.SrcToDsts[glue(t)][glue(h)]; !ok {
-					_ = g.AddEdge(glue(t), glue(h), true, nil)
-				}
-			} else {
-				// TODO
-				log.Println("!!!", h, idx)
+		name := h
+		if l > 1 {
+			name += fmt.Sprintf(":%d", idx)
+			log.Printf("%s -> %s [%s]: %d/%d selected", t, h, kind, idx, l)
+		}
+
+		if node, ok := g.Nodes.Lookup[glue(name)]; ok {
+			log.Printf("%s -> %s [%s]: %s node exists", t, h, kind, name)
+			if node.Attrs["color"] != "green" && kind == own && !strict && l > 1 {
+				node.Attrs["color"] = "green"
+				log.Printf("%s color changed to green", name)
+			}
+			if _, ok := g.Edges.SrcToDsts[glue(t)][glue(name)]; !ok && glue(t) != glue(name) {
+				_ = g.AddEdge(glue(t), glue(name), true, nil)
+				log.Printf("%s -> %s [%s]: edge added", t, h, kind)
 			}
 			continue
 		}
 
-		attrs := map[string]string{
-			"tooltip": glue(meanings[idx].Value),
+		attrs := map[string]string{"tooltip": glue(meanings[idx].Value)}
+		if kind == predicted {
+			attrs["color"] = "blue"
 		}
-		if len(meanings) > 1 {
-			attrs["color"] = "red"
+		if l > 1 && kind == own && !strict {
+			attrs["color"] = "green"
 		}
-		if ru != "" {
-			attrs["xlabel"] = glue("(" + ru + ")")
-		}
-		_ = g.AddNode(g.Name, glue(h), attrs)
-		_ = g.AddEdge(glue(t), glue(h), true, nil)
+		_ = g.AddNode(g.Name, glue(name), attrs)
+		_ = g.AddEdge(glue(t), glue(name), true, nil)
+		log.Printf("%s -> %s [%s]: added", t, h, kind)
 
-		stack.push(h, meanings[idx].Hyperonyms)
+		if len(meanings[idx].Hyperonyms) > 0 {
+			stack.push(name, meanings[idx].Hyperonyms)
+			log.Printf("%s own: %s", name, meanings[idx].Hyperonyms)
+		}
 		if lang != wikt.Russian {
-			hs, rus, err := hypersRU(h, lang, meanings[idx], strict, meanings[idx].Hyperonyms)
+			hs, rus, err := predict(h, lang, meanings[idx], strict, meanings[idx].Hyperonyms, cache)
 			if err != nil {
 				return nil, err
 			}
 			if len(hs) > 0 {
-				log.Println("potential for", h, hs)
-				stack.push2(h, hs, rus)
+				stack.push2(name, hs, rus)
+				log.Printf("%s predicted: %s %s", name, hs, rus)
 			}
 		}
 	}
 
 	return g, nil
+}
+
+func GetWord(title string, cache map[string]parser.Word) (parser.Word, error) {
+	if word, ok := cache[title]; ok {
+		return word, nil
+	}
+
+	word, err := parser.Parse(title)
+	if err != nil {
+		return nil, err
+	}
+
+	cache[title] = word
+
+	return word, nil
 }
 
 func index(title, lang string, meanings parser.Meanings, params map[string]int) int {
@@ -180,13 +218,13 @@ func index(title, lang string, meanings parser.Meanings, params map[string]int) 
 	return 0
 }
 
-func hypersRU(title, lang string, meaning *parser.Meaning, strict bool, existing []string) ([]string, []string, error) {
+func predict(title, lang string, meaning *parser.Meaning, strict bool, existing []string, cache map[string]parser.Word) ([]string, []string, error) {
 	var hs, rus []string
-	for _, v := range meaning.Translations.ByLanguage(wikt.Russian) {
-		w, err := parser.Parse(v)
+	for _, tru := range meaning.Translations.ByLanguage(wikt.Russian) {
+		w, err := GetWord(tru, cache)
 		if err != nil {
 			if err == wikt.ErrMissing {
-				log.Println(v, err)
+				log.Println(tru, err)
 				continue
 			}
 			return nil, nil, err
@@ -204,7 +242,7 @@ func hypersRU(title, lang string, meaning *parser.Meaning, strict bool, existing
 		}
 
 		for _, hru := range w.ByLanguage(wikt.Russian)[idx].Hyperonyms {
-			wh, err := parser.Parse(hru)
+			wh, err := GetWord(hru, cache)
 			if err != nil {
 				if err == wikt.ErrMissing {
 					log.Println(hru, err)
@@ -213,26 +251,25 @@ func hypersRU(title, lang string, meaning *parser.Meaning, strict bool, existing
 				return nil, nil, err
 			}
 
+			idx2 := -1
 			if strict {
-				for _, mhru := range wh.ByLanguage(wikt.Russian) {
-					if contains(mhru.Hyponyms, v) {
-						for _, v := range mhru.Translations.ByLanguage(lang) {
-							if !contains(existing, v) && !contains(hs, v) {
-								hs = append(hs, v)
-								rus = append(rus, hru)
-							}
-						}
+				for i, mhru := range wh.ByLanguage(wikt.Russian) {
+					if contains(mhru.Hyponyms, tru) {
+						idx2 = i
+						break
 					}
 				}
+				if idx2 == -1 {
+					continue
+				}
 			} else {
-				mhrus := wh.ByLanguage(wikt.Russian)
-				if len(mhrus) > 0 {
-					for _, v := range mhrus[0].Translations.ByLanguage(lang) {
-						if !contains(existing, v) && !contains(hs, v) {
-							hs = append(hs, v)
-							rus = append(rus, hru)
-						}
-					}
+				idx2 = index(hru, wikt.Russian, wh.ByLanguage(wikt.Russian), nil)
+			}
+
+			for _, t := range wh.ByLanguage(wikt.Russian)[idx2].Translations.ByLanguage(lang) {
+				if !contains(existing, t) && !contains(hs, t) {
+					hs = append(hs, t)
+					rus = append(rus, hru)
 				}
 			}
 		}

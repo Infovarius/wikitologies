@@ -55,16 +55,14 @@ func main() {
 		port = defaultPort
 	}
 	log.Println("listening on", port)
-	if err := http.ListenAndServe(":"+port, recovery(r)); err != nil {
-		panic(err)
-	}
+	err = http.ListenAndServe(":"+port, recovery(r))
+	panicIf(err)
 }
 
 func mainHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	if err := mainTemplate.Execute(w, nil); err != nil {
-		panic(err)
-	}
+	err := mainTemplate.Execute(w, nil)
+	panicIf(err)
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
@@ -84,14 +82,12 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if err := viewTemplate.Execute(w, data); err != nil {
-		panic(err)
-	}
+	err := viewTemplate.Execute(w, data)
+	panicIf(err)
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request) {
 	title, lang := parseTitleLang(r)
-
 	word, err := parser.Parse(title)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
@@ -121,9 +117,8 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if err := editTemplate.Execute(w, data); err != nil {
-		panic(err)
-	}
+	err = editTemplate.Execute(w, data)
+	panicIf(err)
 }
 
 func saveHandler(w http.ResponseWriter, r *http.Request) {
@@ -132,15 +127,12 @@ func saveHandler(w http.ResponseWriter, r *http.Request) {
 	format := mux.Vars(r)["format"]
 
 	data, err := dot(title, lang, strict, params, format)
-	if err != nil {
-		panic(err)
-	}
+	panicIf(err)
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.%s", title, format))
 	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
-	if _, err := io.Copy(w, bytes.NewReader(data)); err != nil {
-		panic(err)
-	}
+	_, err = io.Copy(w, bytes.NewReader(data))
+	panicIf(err)
 }
 
 func parseTitleLang(r *http.Request) (string, string) {
@@ -207,4 +199,10 @@ func recovery(handler http.Handler) http.Handler {
 
 		handler.ServeHTTP(w, r)
 	})
+}
+
+func panicIf(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
