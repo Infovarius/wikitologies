@@ -9,7 +9,20 @@ import (
 	"strconv"
 )
 
-type numbersResponse struct {
+type queryResponse struct {
+	Query struct {
+		Pages []struct {
+			Title     string
+			Extract   string
+			Missing   bool
+			Revisions []struct {
+				Timestamp string
+			}
+		}
+	}
+}
+
+type parseResponse struct {
 	Parse struct {
 		Sections []struct {
 			Line   string
@@ -17,21 +30,6 @@ type numbersResponse struct {
 			Number string
 			Index  string
 		}
-	}
-}
-
-type textResponse struct {
-	Query struct {
-		Pages []struct {
-			Title   string
-			Extract string
-			Missing bool
-		}
-	}
-}
-
-type wikitextResponse struct {
-	Parse struct {
 		Wikitext string
 	}
 }
@@ -39,6 +37,34 @@ type wikitextResponse struct {
 const apiUrl = "https://ru.wiktionary.org/w/api.php?"
 
 var ErrMissing = errors.New("page is missing")
+
+func GetLastRevision(title string) (string, error) {
+	params := url.Values{}
+	params.Add("action", "query")
+	params.Add("prop", "revisions")
+	params.Add("rvprop", "timestamp")
+	params.Add("redirects", "1")
+	params.Add("format", "json")
+	params.Add("formatversion", "2")
+	params.Add("titles", title)
+
+	bytes, err := get(apiUrl + params.Encode())
+	if err != nil {
+		return "", err
+	}
+
+	var data queryResponse
+	err = json.Unmarshal(bytes, &data)
+	if err != nil {
+		return "", err
+	}
+
+	if data.Query.Pages[0].Missing {
+		return "", ErrMissing
+	}
+
+	return data.Query.Pages[0].Revisions[0].Timestamp, nil
+}
 
 func GetSectionNumbers(title string) ([]int, error) {
 	params := url.Values{}
@@ -57,7 +83,7 @@ func GetSectionNumbers(title string) ([]int, error) {
 		return nil, err
 	}
 
-	var data numbersResponse
+	var data parseResponse
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
 		return nil, err
@@ -89,7 +115,7 @@ func GetText(title string) (string, error) {
 		return "", err
 	}
 
-	var data textResponse
+	var data queryResponse
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
 		return "", err
@@ -120,7 +146,7 @@ func GetWikitext(title string, number int) (string, error) {
 		return "", err
 	}
 
-	var data wikitextResponse
+	var data parseResponse
 	err = json.Unmarshal(bytes, &data)
 	if err != nil {
 		return "", err

@@ -7,6 +7,8 @@ import (
 	wikt "github.com/stillpiercer/wikitologies/wiktionary"
 )
 
+var trim = strings.TrimSpace
+
 func Parse(title string) (Word, error) {
 	text, err := wikt.GetText(title)
 	if err != nil {
@@ -416,8 +418,4 @@ func parseRelationsSection(text string, relations [][]string) {
 			}
 		}
 	}
-}
-
-func trim(s string) string {
-	return strings.TrimSpace(s)
 }

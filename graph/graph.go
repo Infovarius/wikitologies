@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	dot "github.com/awalterschulze/gographviz"
 	"github.com/gomodule/redigo/redis"
@@ -189,31 +190,66 @@ func Build(title, lang string, strict bool, params map[string]int, pool *redis.P
 }
 
 func GetWord(title string, pool *redis.Pool) (parser.Word, error) {
+	const datePrefix = "date:"
 	const wordPrefix = "word:"
-	// TODO const datePrefix = "date:"
 
 	c := pool.Get()
 	defer c.Close()
 
+	update := func(date string) (parser.Word, error) {
+		word, err := parser.Parse(title)
+		if err != nil {
+			return nil, err
+		}
+
+		data, err := json.Marshal(word)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = c.Do("SET", datePrefix+title, date)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = c.Do("SET", wordPrefix+title, data)
+		if err != nil {
+			return nil, err
+		}
+
+		return word, nil
+	}
+
+	dateWikiStr, err := wikt.GetLastRevision(title)
+	if err != nil {
+		return nil, err
+	}
+
+	dateRedisStr, err := redis.String(c.Do("GET", datePrefix+title))
+	if err != nil {
+		if err == redis.ErrNil {
+			return update(dateWikiStr)
+		}
+	}
+
+	dateWiki, err := time.Parse(time.RFC3339, dateWikiStr)
+	if err != nil {
+		return nil, err
+	}
+
+	dateRedis, err := time.Parse(time.RFC3339, dateRedisStr)
+	if err != nil {
+		return nil, err
+	}
+
+	if dateWiki.Sub(dateRedis) > 0 {
+		return update(dateWikiStr)
+	}
+
 	s, err := redis.String(c.Do("GET", wordPrefix+title))
 	if err != nil {
 		if err == redis.ErrNil {
-			word, err := parser.Parse(title)
-			if err != nil {
-				return nil, err
-			}
-
-			data, err := json.Marshal(word)
-			if err != nil {
-				return nil, err
-			}
-
-			_, err = c.Do("SET", wordPrefix+title, data)
-			if err != nil {
-				return nil, err
-			}
-
-			return word, nil
+			return update(dateWikiStr)
 		}
 		return nil, err
 	}
