@@ -39,7 +39,7 @@
                 $("#text").prop("textContent", meaning);
 
                 const color = $(this).find("ellipse").attr("stroke");
-                const disabled = color !== "green" && color !== "#5cb85c";
+                const disabled = color !== "green" && color !== "#00ff00";
                 $("#submit").prop("disabled", disabled);
                 if (disabled) return;
 
@@ -53,12 +53,12 @@
                 $("#text").prop("textContent", title);
 
                 const color = $(this).find("path").attr("stroke");
-                const disabled = color !== "green" && color !== "#5cb85c" && color !== "blue" && color !== "...";
+                const disabled = color !== "green" && color !== "#00ff00" && color !== "blue" && color !== "#0000ff";
                 $("#submit").prop("disabled", disabled);
                 if (disabled) return;
 
                 const index = title.lastIndexOf(":");
-                const lang = color === "blue" || color === "..." ? "Русский" : {{.Lang}};
+                const lang = color === "blue" || color === "#0000ff" ? "Русский" : {{.Lang}};
                 const action = "/edit/" + title.substring(0, index) + "@" + lang;
                 $("#form").prop("action", action);
             });
