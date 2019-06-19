@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>{{.Title}}</title>
+    <title>{{.Titles}}</title>
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
@@ -10,33 +10,59 @@
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
     <style>
-        .node {
+        .node, .edge {
             cursor: pointer;
         }
     </style>
 
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+            integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+            integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+            crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+            integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+            crossorigin="anonymous"></script>
     <script>
-        function init() {
-            document.getElementById("header").textContent = document.getElementById("graph0").children[0].textContent;
+        $(window).on("load", function () {
+            const name = $("#graph0").children().first().prop("textContent");
+            $("#header").prop("textContent", name);
 
             const path = window.location.pathname + window.location.search;
-            document.getElementById("png").href = "/save/png" + path;
-            document.getElementById("svg").href = "/save/svg" + path;
-            document.getElementById("dot").href = "/save/dot" + path;
+            $("#png").prop("href", "/save/png" + path);
+            $("#svg").prop("href", "/save/svg" + path);
+            $("#dot").prop("href", "/save/dot" + path);
 
-            const nodes = document.getElementsByClassName("node");
-            for (let i = 0; i < nodes.length; i++) {
-                nodes[i].addEventListener("click", function () {
-                    document.getElementById("node").textContent = this.children[0].textContent;
-                    document.getElementById("text").textContent = this.children[1].children[0].getAttribute("xlink:title");
-                    document.getElementById("form").action = "/edit/" + this.children[0].textContent.split(":")[0];
-                    const color = this.children[1].children[0].children[0].getAttribute("stroke");
-                    document.getElementById("submit").disabled = !(color === "green" || color === "#00ff00");
-                })
-            }
-        }
+            $(".node").on("click", function () {
+                const meaning = $(this).find("a").attr("xlink:title");
+                $("#text").prop("textContent", meaning);
 
-        window.addEventListener("load", init)
+                const color = $(this).find("ellipse").attr("stroke");
+                const disabled = color !== "green" && color !== "#5cb85c";
+                $("#submit").prop("disabled", disabled);
+                if (disabled) return;
+
+                const title = $(this).children().first().prop("textContent");
+                const action = "/edit/" + title.split(":")[0] + "@" + {{.Lang}};
+                $("#form").prop("action", action);
+            });
+
+            $(".edge").on("click", function () {
+                const title = $(this).find("a").attr("xlink:title");
+                $("#text").prop("textContent", title);
+
+                const color = $(this).find("path").attr("stroke");
+                const disabled = color !== "green" && color !== "#5cb85c" && color !== "blue" && color !== "...";
+                $("#submit").prop("disabled", disabled);
+                if (disabled) return;
+
+                const index = title.lastIndexOf(":");
+                const lang = color === "blue" || color === "..." ? "Русский" : {{.Lang}};
+                const action = "/edit/" + title.substring(0, index) + "@" + lang;
+                $("#form").prop("action", action);
+            });
+        });
     </script>
 </head>
 
@@ -65,35 +91,23 @@
 <div class="container mt-2">
     <div class="row">
         <div id="graph" class="col">
-            {{draw .Title .Lang .Strict .Params}}
+            {{draw .Titles .Lang .Strict .Params}}
         </div>
 
-        <div id="meaning" class="col">
-            <div class="sticky-top">
-                <form id="form">
-                    <div class="form-group">
-                        <label id="node" for="text">значение</label>
-                        <textarea id="text"
-                                  class="form-control"
-                                  readonly
-                                  rows="10">
+        <div class="col">
+            <form id="form">
+                <div class="form-group">
+                    <label for="text">Значение</label>
+                    <textarea id="text"
+                              class="form-control"
+                              readonly
+                              rows="10">
                     </textarea>
-                    </div>
-                    <button id="submit" type="submit" class="btn btn-dark" disabled>Изменить</button>
-                </form>
-            </div>
+                </div>
+                <button id="submit" type="submit" class="btn btn-dark" disabled>Изменить</button>
+            </form>
         </div>
     </div>
 </div>
-
-<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
-        integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
-        crossorigin="anonymous"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
-        integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
-        crossorigin="anonymous"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
-        integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
-        crossorigin="anonymous"></script>
 </body>
 </html>

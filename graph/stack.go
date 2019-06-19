@@ -1,7 +1,8 @@
 package graph
 
 type pair struct {
-	t, h, ru string
+	t, h string
+	pp   *predictedParams
 }
 
 type stack []pair
@@ -16,16 +17,16 @@ func (s *stack) push(t string, hs []string) {
 	}
 }
 
-func (s *stack) push2(t string, hs, rus []string) {
+func (s *stack) push2(t string, hs []string, pp []*predictedParams) {
 	for i := len(hs) - 1; i >= 0; i-- {
-		*s = append(*s, pair{t: t, h: hs[i], ru: rus[i]})
+		*s = append(*s, pair{t: t, h: hs[i], pp: pp[i]})
 	}
 }
 
-func (s *stack) pop() (string, string, string) {
+func (s *stack) pop() (string, string, *predictedParams) {
 	l := len(*s)
 	last := (*s)[l-1]
 	*s = (*s)[:l-1]
 
-	return last.t, last.h, last.ru
+	return last.t, last.h, last.pp
 }

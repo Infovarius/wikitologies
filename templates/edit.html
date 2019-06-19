@@ -9,28 +9,32 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+            integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+            crossorigin="anonymous"></script>
     <script>
-        function init() {
-            const items = document.getElementsByTagName("li");
-            for (let i = 0; i < items.length; i++) {
-                items[i].addEventListener("click", function () {
-                    for (let j = 0; j < items.length; j++) {
-                        items[j].classList.remove("list-group-item-dark");
-                    }
-                    items[i].classList.add("list-group-item-dark");
+        $(window).on("load", function () {
+            $("li").on("click", function () {
+                $("li").removeClass("list-group-item-dark");
+                $(this).addClass("list-group-item-dark");
+                $("#submit").prop("disabled", false);
 
-                    document.getElementById("submit").removeAttribute("disabled");
-                    let url = document.referrer;
-                    if (!url.includes("?")) {
-                        url += "?"
-                    }
-                    url += "&" + {{.Title}} +"=" + items[i].id;
-                    document.getElementById("form").setAttribute("action", url)
-                })
-            }
-        }
-
-        window.addEventListener("load", init);
+                let url = document.referrer;
+                if (!url.includes("?")) {
+                    url += "?"
+                }
+                url += "&";
+                const path = decodeURIComponent(window.location.pathname);
+                if (path.includes("->")) {
+                    const edge = path.replace("/edit/", "").split("@")[0];
+                    url += edge;
+                } else {
+                    url += {{.Title}};
+                }
+                url += "=" + $(this).prop("id");
+                $("#form").prop("action", url);
+            });
+        });
     </script>
 </head>
 

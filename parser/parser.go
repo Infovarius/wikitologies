@@ -336,7 +336,7 @@ func parseTranslationsRu(title string, number int, meanings Meanings) error {
 			}
 
 			split := strings.Split(line[1:], "=")
-			lang, ok := languages[split[0]]
+			lang, ok := Languages.Codes[split[0]]
 			if !ok {
 				continue
 			}

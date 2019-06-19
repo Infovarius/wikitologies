@@ -40,9 +40,8 @@ func main() {
 	defer pool.Close()
 
 	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	panicIf(err)
+
 	mainTemplate = template.Must(template.ParseFiles(wd + "/templates/main.html"))
 	viewTemplate = template.Must(template.
 		New("view.html").
@@ -52,9 +51,10 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", mainHandler)
-	r.HandleFunc("/{title}", viewHandler)
+	r.HandleFunc("/{titles}", viewHandler)
 	r.HandleFunc("/edit/{title}", editHandler)
-	r.HandleFunc("/save/{format}/{title}", saveHandler)
+	r.HandleFunc("/save/{format}/{titles}", saveHandler)
+
 	port, ok := os.LookupEnv("PORT")
 	if !ok {
 		port = defaultPort
@@ -83,21 +83,21 @@ func initRedis() {
 
 func mainHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
-	err := mainTemplate.Execute(w, nil)
+	err := mainTemplate.Execute(w, parser.Languages.Names)
 	panicIf(err)
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request) {
-	title, lang := parseTitleLang(r)
+	titles, lang := parseTitlesLang(r)
 	strict, params := parseStrictParams(r)
 
 	data := struct {
-		Title  string
+		Titles []string
 		Lang   string
 		Strict bool
 		Params map[string]int
 	}{
-		Title:  title,
+		Titles: titles,
 		Lang:   lang,
 		Strict: strict,
 		Params: params,
@@ -109,20 +109,20 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func editHandler(w http.ResponseWriter, r *http.Request) {
-	title, lang := parseTitleLang(r)
+	split := strings.Split(mux.Vars(r)["title"], "@")
+	title, lang := split[0], split[1]
+
+	if strings.Contains(title, "->") {
+		title = strings.Split(title, "->")[1]
+	}
+
 	word, err := graph.GetWord(title, pool)
 	if err != nil {
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 
-	var meanings parser.Meanings
-	if lang != "" {
-		meanings = word.ByLanguage(lang)
-	} else {
-		lang = word[0].Language
-		meanings = word[0].Meanings
-	}
+	meanings := word.ByLanguage(lang)
 	if meanings == nil {
 		_, _ = fmt.Fprintf(w, "language %s for %s not found", lang, title)
 		return
@@ -144,27 +144,23 @@ func editHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveHandler(w http.ResponseWriter, r *http.Request) {
-	title, lang := parseTitleLang(r)
+	titles, lang := parseTitlesLang(r)
 	strict, params := parseStrictParams(r)
 	format := mux.Vars(r)["format"]
 
-	data, err := dot(title, lang, strict, params, format)
+	data, err := dot(titles, lang, strict, params, format)
 	panicIf(err)
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s.%s", title, format))
+	filename := fmt.Sprintf("attachment; filename=%s.%s", strings.Join(titles, "+"), format)
+	w.Header().Set("Content-Disposition", filename)
 	w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
 	_, err = io.Copy(w, bytes.NewReader(data))
 	panicIf(err)
 }
 
-func parseTitleLang(r *http.Request) (string, string) {
-	split := strings.Split(mux.Vars(r)["title"], ":")
-	title, lang := split[0], ""
-	if len(split) > 1 {
-		lang = split[1]
-	}
-
-	return title, lang
+func parseTitlesLang(r *http.Request) ([]string, string) {
+	split := strings.Split(mux.Vars(r)["titles"], "@")
+	return strings.Split(split[0], "+"), split[1]
 }
 
 func parseStrictParams(r *http.Request) (bool, map[string]int) {
@@ -186,8 +182,8 @@ func parseStrictParams(r *http.Request) (bool, map[string]int) {
 	return strict, params
 }
 
-func dot(title, lang string, strict bool, params map[string]int, format string) ([]byte, error) {
-	g, err := graph.Build(title, lang, strict, params, pool)
+func dot(titles []string, lang string, strict bool, params map[string]int, format string) ([]byte, error) {
+	g, err := graph.Build(titles, lang, strict, params, pool)
 	if err != nil {
 		return nil, err
 	}
@@ -202,8 +198,8 @@ func dot(title, lang string, strict bool, params map[string]int, format string) 
 	return cmd.Output()
 }
 
-func draw(title, lang string, strict bool, params map[string]int) template.HTML {
-	data, err := dot(title, lang, strict, params, SVG)
+func draw(titles []string, lang string, strict bool, params map[string]int) template.HTML {
+	data, err := dot(titles, lang, strict, params, SVG)
 	if err != nil {
 		return template.HTML(err.Error())
 	}
